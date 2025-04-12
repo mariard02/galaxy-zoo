@@ -11,89 +11,119 @@ from PIL import Image
 
 # Function to get the label for an image from its filename
 def img_label(img, labels_df):
-    '''Function to turn image path into ID, and return labels from labels_df'''
+    """
+    Given an image path, extract the galaxy ID and retrieve its corresponding label from a DataFrame.
+
+    Parameters:
+    img (Path or str): Path object or string representing the image file. 
+                       The filename is assumed to be the galaxy ID (e.g., '12345.jpg').
+
+    labels_df (pandas.DataFrame): DataFrame indexed by galaxy IDs, where each row contains 
+                                  the labels associated with that ID.
+
+    Returns:
+    pandas.Series: The label(s) corresponding to the galaxy ID extracted from the image filename.
+    """
     # Extract the image ID from its filename (assuming the filename is the galaxy ID)
     img_id = int(img.name.split('.')[0])  # Use 'name' to get the filename
-    
-    # Check if the ID is in the index of labels_df
-    if img_id not in labels_df.index:
-        print(f"Warning: Image ID {img_id} not found in labels DataFrame. Skipping this image.")
-        return None  # Return None if the ID is not found in the labels DataFrame
     
     # If the ID exists, return the corresponding row from labels_df
     return labels_df.loc[img_id]  # Use loc to access the row by its index
 
 # Function to filter a list of files based on whether the filename is in the labels DataFrame index
 def trim_file_list(files, labels_df):
-    '''Function to trim a list of files based on whether the file name is in the ID of labels_df'''
+    """
+    Filter a list of image files to keep only those whose filenames (as IDs) exist in the labels DataFrame.
+
+    Parameters:
+    files (list of Path): List of image file paths. Each filename (stem) is assumed to represent a galaxy ID.
+    labels_df (pandas.DataFrame): DataFrame indexed by galaxy IDs. Only files with matching IDs will be retained.
+
+    Returns:
+    list of Path: Filtered list containing only the files with IDs present in labels_df.
+    """
     # Filter the files to keep only those whose ID is present in the labels DataFrame index
     files = [file for file in files if int(file.stem) in labels_df.index]
-    print(f"Filtered file list length: {len(files)}")  # Debugging line
     return files
-
 
 # Dataset class for loading galaxy images
 class GalaxyDataset(Dataset):
+    """
+    Custom PyTorch Dataset for loading galaxy images and their corresponding labels.
+
+    Parameters:
+    file_list (list of Path): List of image file paths. Filenames (without extensions) are assumed to be galaxy IDs.
+    labels_df (pandas.DataFrame): DataFrame indexed by galaxy IDs with corresponding label information.
+    transform (callable, optional): Optional transformation to be applied on a PIL image (e.g., torchvision transforms).
+    """
     def __init__(self, file_list, labels_df, transform=None):
-        # Filter the file list to keep only files that match the IDs in labels_df
+        # Filter the file list to include only files with IDs present in labels_df
         self.file_list = trim_file_list(file_list, labels_df)
         self.labels_df = labels_df
         self.transform = transform
 
     def __len__(self):
+        # Return the number of valid image files
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        # Get the image path for the given index
+        """
+        Retrieve the image and label at the given index.
+
+        Returns:
+        image (Tensor): Transformed image tensor.
+        label (Tensor): Corresponding label tensor.
+        """
+        # Get the image path from the list
         img_path = self.file_list[idx]
-        # Open the image and convert it to RGB
+
+        # Open the image and ensure it's in RGB format
         image = Image.open(img_path).convert("RGB")
-        
-        # Apply any transformations if provided
+
+        # Apply transformations if specified
         if self.transform:
             image = self.transform(image)
-        
-        # Get the label for the image
-        label = self._get_label(img_path)
-        return image, torch.tensor(label, dtype=torch.long)
 
-    def _get_label(self, img_path):
-        '''Extracts the label for the given image path'''
-        # Use the img_label function to get the label for the image
+        # Retrieve the corresponding label
+        label = self.__get_label(img_path)
+
+        return image, torch.tensor(label, dtype=torch.float64)
+
+    def __get_label(self, img_path):
+        """
+        Internal helper to retrieve the label for a given image path.
+
+        Parameters:
+        img_path (Path): Path to the image file.
+
+        Returns:
+        pandas.Series: Label(s) corresponding to the image.
+        """
         return img_label(img_path, self.labels_df)
 
 
-# Function to load the image dataset
 def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> GalaxyDataset:
-    # Load the labels into a DataFrame and set 'GalaxyID' as the index
+    """
+    Load galaxy images and their corresponding labels into a custom GalaxyDataset.
+
+    Parameters:
+    images_dir (Path): Directory containing the image files (.jpg), where filenames correspond to galaxy IDs.
+    labels_path (Path): Path to the CSV file containing the labels. The file must include a 'GalaxyID' column.
+    transform (callable, optional): Optional image transformations (e.g., normalization, resizing).
+
+    Returns:
+    GalaxyDataset: A PyTorch-compatible dataset containing the filtered image-label pairs.
+    """
+    # Load the labels into a DataFrame and set 'GalaxyID' as the index for easy lookup
     labels_df = pd.read_csv(labels_path).set_index('GalaxyID')
 
-    # Get all the image paths (sorted list of .jpg files)
+    # Collect all .jpg image paths from the directory and sort them for consistency
     image_paths = sorted(images_dir.glob("*.jpg"))
     print(f"Found {len(image_paths)} images in {images_dir}")
 
-    # If the list is empty, there's an issue with the file search pattern
+    # Raise an error if no images were found
     if len(image_paths) == 0:
-        raise ValueError(f"No images found in {images_dir}")
+        raise ValueError(f"No images found in directory: {images_dir}")
 
-    # Return a GalaxyDataset instance
+    # Return the dataset instance using the filtered image paths and labels
     return GalaxyDataset(image_paths, labels_df, transform=transform)
-
-# Define any transformations you want to apply to the images (e.g., resizing and converting to tensor)
-transform = transforms.Compose([
-    transforms.Resize((32, 32)),
-    transforms.ToTensor(),
-])
-
-# Load the dataset
-dataset = load_image_dataset(
-    images_dir=Path("/Users/maria/Desktop/Máster/M1/S2/Physics applications of AI/galaxy-zoo/galaxy-zoo/data/images/images_training_rev1"),
-    labels_path=Path("/Users/maria/Desktop/Máster/M1/S2/Physics applications of AI/galaxy-zoo/galaxy-zoo/data/labels.csv"),
-    transform=transform
-)
-
-# Get the first image and its label from the dataset
-image, label = dataset[0]
-
-# Print the shape of the image tensor and the label
-print(image.shape)
