@@ -37,11 +37,6 @@ class TrainingConfig:
 
     network: NetworkConfig
 
-@dataclass
-class TrainingCli:
-    run_name: str
-    no_config_edit: bool = False
-
 def load_config(path: Path) -> TrainingConfig:
     with open(path) as config_file:
         return dacite.from_dict(TrainingConfig, yaml.safe_load(config_file)["training"])
@@ -73,23 +68,17 @@ def main():
     """
     # Create a minimal parser without default help sections
     parser = simple_parsing.ArgumentParser(add_help=True, description="Train the galaxy classifier.")
-    
     # Add the dataclass
     parser.add_arguments(TrainingCli, dest="cli")
-
     # Parse arguments
     args = parser.parse_args()
-
     # Unpack the dataclass
     cli: TrainingCli = args.cli
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
-
-    divider = "*"*110
-
+    divider = "* "*55
     print("\n" + cf.purple(divider) + "\n")
-
-    print(f"Run name: {cli.run_name}" + "\n")
+    print(f"Run name: {cf.purple(cli.run_name)}" + "\n")
 
     config = prepare_config(
         Path(f"outputs/{cli.run_name}/config.yaml"),
