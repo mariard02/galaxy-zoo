@@ -108,9 +108,14 @@ class GalaxyCNNMLP(Module):
         output_units: int,
         task_type: Literal["classification_binary", "classification_multiclass", "regression"],
     ):
+        
         super().__init__()
 
         self.task_type = task_type
+        VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
+        if task_type not in VALID_TASK_TYPES:
+            raise ValueError(f"Unsupported task_type: {task_type}. Must be one of {VALID_TASK_TYPES}")
+        
         channels, height, width = input_image_shape
 
         self.cnn = Sequential(
@@ -158,7 +163,7 @@ class GalaxyCNNMLP(Module):
             self.activation = Sigmoid()
         elif self.task_type == "classification_multiclass":
             self.activation = Softmax(dim=1)
-        else:
+        elif self.task_type == "regression":
             self.activation = None
 
     def forward(self, x: Tensor) -> Tensor:
