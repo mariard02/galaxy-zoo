@@ -1,3 +1,5 @@
+import colorful as cf
+
 def generate_title_string():
     """
     Returns a string that will be printed as a header of the program.
@@ -35,3 +37,7 @@ def generate_title_string():
 
     final_output = "\n".join(f"{ghost}  {title}" for ghost, title in zip(ascii_galaxy, title_lines))
     return final_output
+
+def print_divider():
+    divider = "* "*55
+    print("\n" + cf.purple(divider) + "\n")

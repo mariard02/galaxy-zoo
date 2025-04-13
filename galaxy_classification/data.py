@@ -87,7 +87,7 @@ class GalaxyDataset(Dataset):
         # Retrieve the corresponding label
         label = self.__get_label(img_path)
 
-        return image, torch.tensor(label, dtype=torch.float64)
+        return image, torch.tensor(label.values, dtype=torch.float64)
 
     def __get_label(self, img_path):
         """
@@ -100,6 +100,24 @@ class GalaxyDataset(Dataset):
         pandas.Series: Label(s) corresponding to the image.
         """
         return img_label(img_path, self.labels_df)
+    
+    def image_shape(self):
+        """
+        Returns the shape of the first transformed image, if possible.
+
+        Returns:
+            tuple: Shape of the image (e.g., (3, 224, 224))
+
+        Raises:
+            AttributeError: If the image does not have a 'shape' attribute.
+        """
+        image, _ = self[0]
+        try:
+            return image.shape
+        except AttributeError:
+            raise AttributeError("The loaded image does not have a 'shape' attribute. "
+                                "Make sure your 'transform' function converts the image to a tensor.")
+
 
 
 def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> GalaxyDataset:
@@ -119,7 +137,6 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
 
     # Collect all .jpg image paths from the directory and sort them for consistency
     image_paths = sorted(images_dir.glob("*.jpg"))
-    print(f"Found {len(image_paths)} images in {images_dir}")
 
     # Raise an error if no images were found
     if len(image_paths) == 0:
@@ -127,3 +144,61 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
 
     # Return the dataset instance using the filtered image paths and labels
     return GalaxyDataset(image_paths, labels_df, transform=transform)
+
+class GalaxyPreprocessor:
+    def __init__(self, scale_factor=256.0):
+        self.scale_factor = scale_factor
+
+    def apply_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
+        # Creamos un nuevo transform que aplica el anterior + el escalado
+        def new_transform(img):
+            if dataset.transform:
+                img = dataset.transform(img)
+            return img / self.scale_factor
+        
+        return GalaxyDataset(
+            file_list=dataset.file_list,
+            labels_df=dataset.labels_df,
+            transform=new_transform
+        )
+
+    def undo_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
+        def new_transform(img):
+            if dataset.transform:
+                img = dataset.transform(img)
+            return img * self.scale_factor
+
+        return GalaxyDataset(
+            file_list=dataset.file_list,
+            labels_df=dataset.labels_df,
+            transform=new_transform
+        )
+
+@dataclass
+class SplitGalaxyDataLoader:
+    training_dataloader: DataLoader
+    validation_dataloader: DataLoader
+
+    def __init__(
+        self,
+        dataset: GalaxyDataset,  # Usamos GalaxyDataset
+        validation_fraction: float,
+        batch_size: int,
+    ):
+        validation_size = int(validation_fraction * len(dataset))
+        train_size = len(dataset) - validation_size
+
+        # Dividir el dataset en entrenamiento y validación
+        training_dataset, validation_dataset = torch.utils.data.random_split(
+            dataset,
+            lengths=[train_size, validation_size],
+            generator=Generator().manual_seed(42),
+        )
+
+        # Crear los dataloaders
+        self.training_dataloader = DataLoader(
+            training_dataset, batch_size=batch_size, shuffle=True
+        )
+        self.validation_dataloader = DataLoader(
+            validation_dataset, batch_size=batch_size, shuffle=True
+        )

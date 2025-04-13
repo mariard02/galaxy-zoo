@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import colorful as cf
 
 # Set the color scheme for the console output
-cf.use_style('solarized')
+cf.use_style('monokai')
 
 def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_loss, validation_accuracy, printing_interval_epochs):
     """
@@ -27,7 +27,7 @@ def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_l
     """
     if (epoch_index + 1) % printing_interval_epochs == 0:
         # Create a formatted string with a box around the epoch
-        epoch_str = f"{cf.cyan}{cf.bold}Epoch {epoch_index + 1}{cf.reset}"
+        epoch_str = f"{cf.purple}{cf.bold}Epoch {epoch_index + 1}{cf.reset}"
 
         # Create strings for training and validation metrics without changing background colors
         training_loss_str = f"Training Loss: {training_loss:.2e}"
@@ -36,9 +36,9 @@ def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_l
         validation_accuracy_str = f"Validation Accuracy: {validation_accuracy * 100.0:.2f}%"
 
         # Print with a box around the epoch
-        print(f"{cf.bold}{cf.cyan}{'=' * (len(epoch_str) + 4)}{cf.reset}")
-        print(f"{cf.bold}{cf.cyan}          {epoch_str}   {cf.reset}")
-        print(f"{cf.bold}{cf.cyan}{'=' * (len(epoch_str) + 4)}{cf.reset}")
+        print(f"{cf.bold}{cf.purple}{'=' * (len(epoch_str) + 4)}{cf.reset}")
+        print(f"{cf.bold}{cf.purple}          {epoch_str}   {cf.reset}")
+        print(f"{cf.bold}{cf.purple}{'=' * (len(epoch_str) + 4)}{cf.reset}")
 
         # Print the rest of the metrics
         print(f"{training_loss_str}")

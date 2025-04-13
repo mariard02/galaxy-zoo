@@ -76,8 +76,8 @@ def main():
     cli: TrainingCli = args.cli
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
-    divider = "* "*55
-    print("\n" + cf.purple(divider) + "\n")
+    
+    print_divider()
     print(f"Run name: {cf.purple(cli.run_name)}" + "\n")
 
     config = prepare_config(
@@ -89,14 +89,29 @@ def main():
 
     # Load a dataset with the data
     print("\nLoading the dataset. \n")
-    galaxy_dataset = load_image_dataset(Path("data/images/images_training_rev1"), Path("data/labels.csv"), transform=transform)
+    galaxy_dataset = load_image_dataset(Path("data/images/images_training_rev1"), Path("data/labels.csv"), transform=transform)   
 
-    print(cf.purple(divider) + "\n")
+    print("Preprocessing the data. \n")
+    preprocessor = GalaxyPreprocessor()
+    galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
+    split_dataloader = SplitGalaxyDataLoader(
+        galaxy_preprocessed,
+        config.validation_fraction,
+        config.batch_size,
+    )
+
+    
+
+    print("Building the CNN. \n")
     network = build_network(
-        galaxy_dataset.image_shape(),
+        galaxy_preprocessed.image_shape(),
         config.network,
     )
+
+    print("Training...")
+
+    print_divider()
    
 
 if __name__ == "__main__":

@@ -2,6 +2,8 @@ from galaxy_classification.networks.cnn import GalaxyCNNMLP, GalaxyClassificatio
 
 NetworkConfig = GalaxyClassificationCNNConfig
 
+# TO-DO: BUILD LOSS FUNCTION
+
 def build_network(
     input_image_shape: tuple[int, int, int],
     config: NetworkConfig,
