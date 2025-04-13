@@ -13,12 +13,40 @@ import colorful as cf
 
 cf.use_style('solarized')
 
-title_string = r""" * ▗▄▄▖ ▗▄▖ ▗▖   .▗▄▖ ▗▖  ▗▖▗▖  ▗▖   .▗▄▄▄▄▖ ▗▄▖  ▗▄▖ .
-  ▐▌  .▐▌ ▐▌▐▌  .▐▌ ▐▌ ▝▚▞▘  ▝▚▞▘   .    ▗▞▘▐▌ ▐▌▐▌ ▐▌
-. ▐▌▝▜▌▐▛▀▜▌▐▌   ▐▛▀▜▌  ▐▌   .▐▌       ▗▞▘  ▐▌ ▐▌▐▌ ▐▌   *
-  ▝▚▄▞▘▐▌ ▐▌▐▙▄▄▖▐▌ ▐▌▗▞▘▝▚▖  ▐▌  *   ▐▙▄▄▄▖▝▚▄▞▘▝▚▄▞▘ ."""
+def generate_title_string():
+  
+    ascii_galaxy = [
+        "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⡀⠒⠒⠦⣄⡀⠀⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⠀⠀⠀⢀⣤⣶⡾⠿⠿⠿⠿⣿⣿⣶⣦⣄⠙⠷⣤⡀⠀⠀⠀⠀",
+        "⠀⠀⠀⣠⡾⠛⠉⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⣿⣷⣄⠘⢿⡄⠀⠀⠀",
+        "⠀⢀⡾⠋⠀⠀⠀⠀⠀⠀⠀⠀⠐⠂⠠⢄⡀⠈⢿⣿⣧⠈⢿⡄⠀⠀",
+        "⢀⠏⠀⠀⠀⢀⠄⣀⣴⣾⠿⠛⠛⠛⠷⣦⡙⢦⠀⢻⣿⡆⠘⡇⠀⠀",
+        "⠀⠀⠀⠀⡐⢁⣴⡿⠋⢀⠠⣠⠤⠒⠲⡜⣧⢸⠄⢸⣿⡇⠀⡇⠀⠀",
+        "⠀⠀⠀⡼⠀⣾⡿⠁⣠⢃⡞⢁⢔⣆⠔⣰⠏⡼⠀⣸⣿⠃⢸⠃⠀⠀",
+        "⠀⠀⢰⡇⢸⣿⡇⠀⡇⢸⡇⣇⣀⣠⠔⠫⠊⠀⣰⣿⠏⡠⠃⠀⠀⢀",
+        "⠀⠀⢸⡇⠸⣿⣷⠀⢳⡈⢿⣦⣀⣀⣀⣠⣴⣾⠟⠁⠀⠀⠀⠀⢀⡎",
+        "⠀⠀⠘⣷⠀⢻⣿⣧⠀⠙⠢⠌⢉⣛⠛⠋⠉⠀⠀⠀⠀⠀⠀⣠⠎⠀",
+        "⠀⠀⠀⠹⣧⡀⠻⣿⣷⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⡾⠃⠀⠀",
+        "⠀⠀⠀⠀⠈⠻⣤⡈⠻⢿⣿⣷⣦⣤⣤⣤⣤⣤⣴⡾⠛⠉⠀⠀⠀⠀",
+        "⠀⠀⠀⠀⠀⠀⠈⠙⠶⢤⣈⣉⠛⠛⠛⠛⠋⠉⠀⠀⠀⠀⠀⠀⠀⠀",
+        "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"
+    ]
 
+    title_string = r"""    * ▗▄▄▖  ▗▄▖ ▗▖   .▗▄▖ ▗▖  ▗▖▗▖  ▗▖   .▗▄▄▄▄▖ ▗▄▖  ▗▄▖ .
+      ▐▌  .▐▌ ▐▌▐▌  .▐▌ ▐▌ ▝▚▞▘  ▝▚▞▘   .    ▗▞▘▐▌ ▐▌▐▌ ▐▌
+    . ▐▌▝▜▌▐▛▀▜▌▐▌   ▐▛▀▜▌  ▐▌   .▐▌       ▗▞▘  ▐▌ ▐▌▐▌ ▐▌   *
+      ▝▚▄▞▘▐▌ ▐▌▐▙▄▄▖▐▌ ▐▌▗▞▘▝▚▖  ▐▌  *   ▐▙▄▄▄▖▝▚▄▞▘▝▚▄▞▘ ."""
 
+    ascii_height = len(ascii_galaxy)
+    title_lines = title_string.splitlines()
+    title_height = len(title_lines)
+
+    top_padding = (ascii_height - title_height) // 2
+    title_lines = [""] * top_padding + title_lines
+    title_lines += [""] * (ascii_height - len(title_lines)) 
+
+    final_output = "\n".join(f"{ghost}  {title}" for ghost, title in zip(ascii_galaxy, title_lines))
+    return final_output
 
 # Dataclass to load the data from the run
 @dataclass
@@ -50,9 +78,9 @@ def main():
     # Unpack the dataclass
     cli: TrainingCli = args.cli
 
-    print("\n" + cf.cyan(title_string) + "\n") 
-    print(f"Run name: {cli.run_name}")
-    print(f"Configuration editing disabled: {cli.no_config_edit}")
+    print("\n" + cf.cyan(generate_title_string()) + "\n") 
+    print(f"Run name: {cli.run_name}" + "\n")
+    
 
 if __name__ == "__main__":
     # Set up basic logging configuration
