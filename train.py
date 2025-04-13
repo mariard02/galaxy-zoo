@@ -10,43 +10,11 @@ from pathlib import Path
 from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 import colorful as cf
+from galaxy_classification.data import *
+from galaxy_classification.networks import *
+from asciiart import *
 
-cf.use_style('solarized')
-
-def generate_title_string():
-  
-    ascii_galaxy = [
-        "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⡀⠒⠒⠦⣄⡀⠀⠀⠀⠀⠀⠀⠀",
-        "⠀⠀⠀⠀⠀⢀⣤⣶⡾⠿⠿⠿⠿⣿⣿⣶⣦⣄⠙⠷⣤⡀⠀⠀⠀⠀",
-        "⠀⠀⠀⣠⡾⠛⠉⠀⠀⠀⠀⠀⠀⠀⠈⠙⠻⣿⣷⣄⠘⢿⡄⠀⠀⠀",
-        "⠀⢀⡾⠋⠀⠀⠀⠀⠀⠀⠀⠀⠐⠂⠠⢄⡀⠈⢿⣿⣧⠈⢿⡄⠀⠀",
-        "⢀⠏⠀⠀⠀⢀⠄⣀⣴⣾⠿⠛⠛⠛⠷⣦⡙⢦⠀⢻⣿⡆⠘⡇⠀⠀",
-        "⠀⠀⠀⠀⡐⢁⣴⡿⠋⢀⠠⣠⠤⠒⠲⡜⣧⢸⠄⢸⣿⡇⠀⡇⠀⠀",
-        "⠀⠀⠀⡼⠀⣾⡿⠁⣠⢃⡞⢁⢔⣆⠔⣰⠏⡼⠀⣸⣿⠃⢸⠃⠀⠀",
-        "⠀⠀⢰⡇⢸⣿⡇⠀⡇⢸⡇⣇⣀⣠⠔⠫⠊⠀⣰⣿⠏⡠⠃⠀⠀⢀",
-        "⠀⠀⢸⡇⠸⣿⣷⠀⢳⡈⢿⣦⣀⣀⣀⣠⣴⣾⠟⠁⠀⠀⠀⠀⢀⡎",
-        "⠀⠀⠘⣷⠀⢻⣿⣧⠀⠙⠢⠌⢉⣛⠛⠋⠉⠀⠀⠀⠀⠀⠀⣠⠎⠀",
-        "⠀⠀⠀⠹⣧⡀⠻⣿⣷⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⡾⠃⠀⠀",
-        "⠀⠀⠀⠀⠈⠻⣤⡈⠻⢿⣿⣷⣦⣤⣤⣤⣤⣤⣴⡾⠛⠉⠀⠀⠀⠀",
-        "⠀⠀⠀⠀⠀⠀⠈⠙⠶⢤⣈⣉⠛⠛⠛⠛⠋⠉⠀⠀⠀⠀⠀⠀⠀⠀",
-        "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"
-    ]
-
-    title_string = r"""    * ▗▄▄▖  ▗▄▖ ▗▖   .▗▄▖ ▗▖  ▗▖▗▖  ▗▖   .▗▄▄▄▄▖ ▗▄▖  ▗▄▖ .
-      ▐▌  .▐▌ ▐▌▐▌  .▐▌ ▐▌ ▝▚▞▘  ▝▚▞▘   .    ▗▞▘▐▌ ▐▌▐▌ ▐▌
-    . ▐▌▝▜▌▐▛▀▜▌▐▌   ▐▛▀▜▌  ▐▌   .▐▌       ▗▞▘  ▐▌ ▐▌▐▌ ▐▌   *
-      ▝▚▄▞▘▐▌ ▐▌▐▙▄▄▖▐▌ ▐▌▗▞▘▝▚▖  ▐▌  *   ▐▙▄▄▄▖▝▚▄▞▘▝▚▄▞▘ ."""
-
-    ascii_height = len(ascii_galaxy)
-    title_lines = title_string.splitlines()
-    title_height = len(title_lines)
-
-    top_padding = (ascii_height - title_height) // 2
-    title_lines = [""] * top_padding + title_lines
-    title_lines += [""] * (ascii_height - len(title_lines)) 
-
-    final_output = "\n".join(f"{ghost}  {title}" for ghost, title in zip(ascii_galaxy, title_lines))
-    return final_output
+cf.use_style('monokai')
 
 # Dataclass to load the data from the run
 @dataclass
@@ -59,6 +27,43 @@ class TrainingCli:
     run_name: str
     no_config_edit: bool = False
 
+@dataclass
+class TrainingConfig:
+    epoch_count: int
+    batch_size: int
+    learning_rate: float
+
+    validation_fraction: float
+
+    network: NetworkConfig
+
+@dataclass
+class TrainingCli:
+    run_name: str
+    no_config_edit: bool = False
+
+def load_config(path: Path) -> TrainingConfig:
+    with open(path) as config_file:
+        return dacite.from_dict(TrainingConfig, yaml.safe_load(config_file)["training"])
+    
+def prepare_config(
+    output_path: Path, default_path: Path, run_name: str, allow_config_edit: bool
+) -> TrainingConfig:
+    os.makedirs(output_path.parent, exist_ok=True)
+    print(f"Copying {default_path} to {output_path}")
+    shutil.copy(default_path, output_path)
+    if allow_config_edit:
+        _ = input(
+            f"Please edit the config in outputs/{run_name}/config.yaml"
+            " to set the parameters for this run.\n"
+            "After, press enter to continue."
+        )
+    return load_config(output_path)
+
+transform = transforms.Compose([
+    transforms.ToTensor(),  # Convierte PIL.Image a torch.Tensor con valores entre 0 y 1
+])
+
 def main():
     """
     Main entry point of the script.
@@ -67,7 +72,7 @@ def main():
     setup or execution logic required to start the training run.
     """
     # Create a minimal parser without default help sections
-    parser = simple_parsing.ArgumentParser(add_help=True, description="Train your galaxy classifier.")
+    parser = simple_parsing.ArgumentParser(add_help=True, description="Train the galaxy classifier.")
     
     # Add the dataclass
     parser.add_arguments(TrainingCli, dest="cli")
@@ -78,9 +83,32 @@ def main():
     # Unpack the dataclass
     cli: TrainingCli = args.cli
 
-    print("\n" + cf.cyan(generate_title_string()) + "\n") 
+    print("\n" + cf.purple(generate_title_string()) + "\n") 
+
+    divider = "*"*110
+
+    print("\n" + cf.purple(divider) + "\n")
+
     print(f"Run name: {cli.run_name}" + "\n")
-    
+
+    config = prepare_config(
+        Path(f"outputs/{cli.run_name}/config.yaml"),
+        Path("config_default.yaml"),
+        cli.run_name,
+        not cli.no_config_edit,
+    )
+
+    # Load a dataset with the data
+    print("\nLoading the dataset. \n")
+    galaxy_dataset = load_image_dataset(Path("data/images/images_training_rev1"), Path("data/labels.csv"), transform=transform)
+
+    print(cf.purple(divider) + "\n")
+
+    network = build_network(
+        galaxy_dataset.image_shape(),
+        config.network,
+    )
+   
 
 if __name__ == "__main__":
     # Set up basic logging configuration
