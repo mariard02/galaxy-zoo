@@ -146,16 +146,38 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
     return GalaxyDataset(image_paths, labels_df, transform=transform)
 
 class GalaxyPreprocessor:
+    """
+    Class to preprocess galaxy images by applying a scaling transformation.
+    
+    The preprocessing can be undone by reversing the scaling transformation.
+    """
     def __init__(self, scale_factor=256.0):
+        """
+        Initialize the GalaxyPreprocessor with a scaling factor.
+        
+        :param scale_factor: A float representing the factor by which to scale the images. 
+                              Default is 256.0.
+        """
         self.scale_factor = scale_factor
 
     def apply_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
-        # Creamos un nuevo transform que aplica el anterior + el escalado
+        """
+        Apply preprocessing to the dataset, which includes the scaling transformation.
+        
+        This method creates a new transformation function that applies the existing 
+        transformation (if any) followed by scaling the images by the defined scale factor.
+        
+        :param dataset: The GalaxyDataset to be preprocessed.
+        :return: A new GalaxyDataset with the preprocessing transformation applied.
+        """
+        # Define a new transformation function that first applies any existing transformation
+        # and then scales the image.
         def new_transform(img):
             if dataset.transform:
                 img = dataset.transform(img)
             return img / self.scale_factor
         
+        # Return a new dataset with the new transformation
         return GalaxyDataset(
             file_list=dataset.file_list,
             labels_df=dataset.labels_df,
@@ -163,11 +185,22 @@ class GalaxyPreprocessor:
         )
 
     def undo_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
+        """
+        Undo the preprocessing (i.e., the scaling) applied earlier to the dataset.
+        
+        This method creates a new transformation function that reverses the scaling transformation
+        by multiplying the image by the scale factor instead of dividing.
+        
+        :param dataset: The GalaxyDataset from which to undo the preprocessing.
+        :return: A new GalaxyDataset with the inverse transformation applied.
+        """
+        # Define a new transformation function that applies the inverse of the scaling transformation
         def new_transform(img):
             if dataset.transform:
                 img = dataset.transform(img)
             return img * self.scale_factor
 
+        # Return a new dataset with the inverse transformation
         return GalaxyDataset(
             file_list=dataset.file_list,
             labels_df=dataset.labels_df,
@@ -176,26 +209,44 @@ class GalaxyPreprocessor:
 
 @dataclass
 class SplitGalaxyDataLoader:
+    """
+    Data loader class for splitting a GalaxyDataset into training and validation sets.
+    
+    The dataset is divided based on a specified validation fraction, and DataLoader objects are
+    created for both the training and validation datasets.
+    """
     training_dataloader: DataLoader
     validation_dataloader: DataLoader
 
     def __init__(
         self,
-        dataset: GalaxyDataset,  # Usamos GalaxyDataset
-        validation_fraction: float,
-        batch_size: int,
+        dataset: GalaxyDataset,  # GalaxyDataset used as input
+        validation_fraction: float,  # Fraction of data to be used for validation
+        batch_size: int,  # Batch size for the data loaders
     ):
+        """
+        Initialize the data loaders for training and validation datasets.
+        
+        The dataset is split based on the provided validation fraction, and 
+        DataLoader objects are created for both training and validation sets.
+        
+        :param dataset: GalaxyDataset containing the galaxy images and their labels.
+        :param validation_fraction: A float representing the fraction of the dataset to be used 
+                                    for validation.
+        :param batch_size: The batch size to be used in the DataLoader objects.
+        """
+        # Calculate the number of samples for training and validation sets
         validation_size = int(validation_fraction * len(dataset))
         train_size = len(dataset) - validation_size
 
-        # Dividir el dataset en entrenamiento y validación
+        # Split the dataset into training and validation sets
         training_dataset, validation_dataset = torch.utils.data.random_split(
             dataset,
             lengths=[train_size, validation_size],
-            generator=Generator().manual_seed(42),
+            generator=Generator().manual_seed(42),  # Ensuring reproducibility of the split
         )
 
-        # Crear los dataloaders
+        # Create DataLoader objects for both training and validation datasets
         self.training_dataloader = DataLoader(
             training_dataset, batch_size=batch_size, shuffle=True
         )
