@@ -85,11 +85,11 @@ class GalaxyDataset(Dataset):
             image = self.transform(image)
 
         # Retrieve the corresponding label
-        label = self.__get_label(img_path)
+        label = self._get_label(img_path)
 
-        return image, torch.tensor(label.values, dtype=torch.float64)
+        return image, torch.tensor(label.values, dtype=torch.float32)
 
-    def __get_label(self, img_path):
+    def _get_label(self, img_path):
         """
         Internal helper to retrieve the label for a given image path.
 
@@ -145,6 +145,7 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
     # Return the dataset instance using the filtered image paths and labels
     return GalaxyDataset(image_paths, labels_df, transform=transform)
 
+# TO DO: PREPARE THE PREPROCESSING 
 class GalaxyPreprocessor:
     """
     Class to preprocess galaxy images by applying a scaling transformation.
@@ -243,7 +244,7 @@ class SplitGalaxyDataLoader:
         training_dataset, validation_dataset = torch.utils.data.random_split(
             dataset,
             lengths=[train_size, validation_size],
-            generator=Generator().manual_seed(42),  # Ensuring reproducibility of the split
+            generator=Generator().manual_seed(15),  # Ensuring reproducibility of the split
         )
 
         # Create DataLoader objects for both training and validation datasets

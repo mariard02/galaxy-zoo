@@ -164,7 +164,7 @@ def compute_average_epoch_loss(
     """
     epoch_loss_train = 0.0
     for batch in dataloader:
-        images, labels = batch["images"], batch["labels"]
+        images, labels = batch
 
         # Zero the gradients if an optimizer is provided
         if optimizer is not None:
@@ -184,6 +184,22 @@ def compute_average_epoch_loss(
 
     return epoch_loss_train / len(dataloader)
 
+def compute_mse(network, dataloader):
+    network.eval()
+    y_true, y_pred = [], []
+
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            outputs = network(inputs)
+            y_true.append(targets)
+            y_pred.append(outputs)
+
+    y_true = torch.cat(y_true, dim=0)
+    y_pred = torch.cat(y_pred, dim=0)
+
+    mse = torch.nn.functional.mse_loss(y_pred, y_true).item()
+    return mse
+
 
 def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
     """
@@ -199,7 +215,7 @@ def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
     prediction_count = 0
     correct_prediction_count = 0
     for batch in dataloader:
-        images, labels = batch["images"], batch["labels"]
+        images, labels = batch
         labels_predicted = model(images)
 
         # Get predicted labels by taking the class with the highest probability
@@ -232,30 +248,37 @@ def fit(
         epoch_count (int): The number of epochs to train the model.
 
     Returns:
-        TrainingSummary: An object containing the training summary, including loss and accuracy.
+        TrainingSummary: An object containing the training summary, including loss and accuracy or mse.
     """
     summary = TrainingSummary(printing_interval_epochs=1)
+
     for _ in range(epoch_count):
         # Training phase
         network.train()
         epoch_loss_training = compute_average_epoch_loss(
             network, training_dataloader, loss, optimizer
         )
-        epoch_accuracy_training = compute_accuracy(network, training_dataloader)
 
         # Validation phase
         network.eval()
         epoch_loss_validation = compute_average_epoch_loss(
             network, validation_dataloader, loss
         )
-        epoch_accuracy_validation = compute_accuracy(network, validation_dataloader)
 
-        # Append the summary for the epoch
+        # Metrics depending on the task
+        if getattr(network, "task_type", None) == "regression":
+            epoch_metric_training = compute_mse(network, training_dataloader)
+            epoch_metric_validation = compute_mse(network, validation_dataloader)
+        else:
+            epoch_metric_training = compute_accuracy(network, training_dataloader)
+            epoch_metric_validation = compute_accuracy(network, validation_dataloader)
+
+        # Save the results
         summary.append_epoch_summary(
             epoch_loss_training,
-            epoch_accuracy_training,
+            epoch_metric_training,
             epoch_loss_validation,
-            epoch_accuracy_validation,
+            epoch_metric_validation,
         )
 
     return summary

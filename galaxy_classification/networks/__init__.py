@@ -1,8 +1,6 @@
-from galaxy_classification.networks.cnn import GalaxyCNNMLP, GalaxyClassificationCNNConfig
+from galaxy_classification.networks.cnn import GalaxyCNNMLP, GalaxyClassificationCNNConfig, LossFunction
 
 NetworkConfig = GalaxyClassificationCNNConfig
-
-# TO-DO: BUILD LOSS FUNCTION
 
 def build_network(
     input_image_shape: tuple[int, int, int],
@@ -25,5 +23,11 @@ def build_network(
                 task_type=task_type,
             )
         case _:
-            assert False
+            raise ValueError(f"Unsupported network config: {type(config.network)}")
         
+def get_loss(config: NetworkConfig):
+    match config.network:
+        case GalaxyClassificationCNNConfig(task_type=task_type):
+            return LossFunction(task_type=task_type).get()
+        case _:
+            raise ValueError(f"Unsupported network config: {type(config.network)}")

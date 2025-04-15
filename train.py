@@ -12,6 +12,7 @@ from torch.optim import AdamW
 import colorful as cf
 from galaxy_classification.data import *
 from galaxy_classification.networks import *
+import galaxy_classification
 from asciiart import *
 
 cf.use_style('monokai')
@@ -101,15 +102,28 @@ def main():
         config.batch_size,
     )
 
-    
-
     print("Building the CNN. \n")
     network = build_network(
         galaxy_preprocessed.image_shape(),
         config.network,
     )
 
+    optimizer = AdamW(network.parameters(), lr = config.learning_rate) # The optimizer does not depend on the task
+
+    loss = get_loss(config=config)
+
     print("Training...")
+    
+    training_summary = galaxy_classification.fit(
+        network,
+        optimizer,
+        loss,
+        split_dataloader.training_dataloader,
+        split_dataloader.validation_dataloader,
+        config.epoch_count,
+    )
+
+    
 
     print_divider()
    

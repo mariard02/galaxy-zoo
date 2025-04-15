@@ -39,5 +39,5 @@ def generate_title_string():
     return final_output
 
 def print_divider():
-    divider = "* "*55
+    divider = "* "*40
     print("\n" + cf.purple(divider) + "\n")

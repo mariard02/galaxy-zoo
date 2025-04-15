@@ -13,6 +13,10 @@ from torch.nn import (
     Softmax,
     AvgPool2d,
     functional,
+    BCEWithLogitsLoss, 
+    CrossEntropyLoss, 
+    MSELoss,
+    Module
 )
 
 
@@ -90,6 +94,7 @@ class DoubleConvolutionBlock(Module):
 class GalaxyCNNMLP(Module):
     """
     CNN + MLP model for image classification or regression.
+    Produces raw logits — the loss function should apply the appropriate activation.
 
     Args:
         input_image_shape (tuple[int, int, int]): Input shape as (channels, height, width).
@@ -97,7 +102,7 @@ class GalaxyCNNMLP(Module):
         convolution_kernel_size (int): Size of convolution kernels.
         mlp_hidden_unit_count (int): Number of hidden units in the first MLP layer.
         output_units (int): Number of output units.
-        task_type (Literal): Task type to determine activation function.
+        task_type (Literal): Task type to determine loss function and optional output activation.
     """
     def __init__(
         self,
@@ -108,14 +113,13 @@ class GalaxyCNNMLP(Module):
         output_units: int,
         task_type: Literal["classification_binary", "classification_multiclass", "regression"],
     ):
-        
         super().__init__()
 
         self.task_type = task_type
         VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
         if task_type not in VALID_TASK_TYPES:
             raise ValueError(f"Unsupported task_type: {task_type}. Must be one of {VALID_TASK_TYPES}")
-        
+
         channels, height, width = input_image_shape
 
         self.cnn = Sequential(
@@ -142,7 +146,7 @@ class GalaxyCNNMLP(Module):
             AvgPool2d(kernel_size=2),
         )
 
-        # Automatically calculate output size after CNN block
+        # Calculate flattened size
         with torch.no_grad():
             dummy_input = torch.zeros(1, channels, height, width)
             flattened_size = self.cnn(dummy_input).view(1, -1).shape[1]
@@ -158,26 +162,55 @@ class GalaxyCNNMLP(Module):
             Linear(mlp_hidden_unit_count // 2, output_units),
         )
 
-        # Define task-specific output activation
-        if self.task_type == "classification_binary":
-            self.activation = Sigmoid()
-        elif self.task_type == "classification_multiclass":
-            self.activation = Softmax(dim=1)
-        elif self.task_type == "regression":
-            self.activation = None
+        # No activation function here; it's handled by the loss function
+        self.output_units = output_units
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward pass through the CNN and MLP blocks.
+        Forward pass through CNN and MLP. Returns raw logits.
 
         Args:
             x (Tensor): Input image tensor.
 
         Returns:
-            Tensor: Model output after passing through CNN, MLP, and activation function.
+            Tensor: Logits or raw predictions.
         """
         x = self.cnn(x)
         x = self.mlp(x)
-        if self.activation:
-            x = self.activation(x)
         return x
+
+class LossFunction:
+    """
+    Provides the appropriate loss function based on the task type.
+
+    Args:
+        task_type (Literal): The type of task. Must be one of:
+            - "classification_binary"
+            - "classification_multiclass"
+            - "regression"
+    """
+
+    def __init__(self, task_type: Literal["classification_binary", "classification_multiclass", "regression"]):
+        VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
+        if task_type not in VALID_TASK_TYPES:
+            raise ValueError(f"Unsupported task_type: {task_type}. Must be one of {VALID_TASK_TYPES}")
+
+        self.task_type = task_type
+
+        if self.task_type == "classification_binary":
+            # Assumes model output uses Sigmoid activation
+            self.loss_fn = BCEWithLogitsLoss()
+        elif self.task_type == "classification_multiclass":
+            # Assumes model output uses raw logits (no Softmax)
+            self.loss_fn = CrossEntropyLoss()
+        elif self.task_type == "regression":
+            self.loss_fn = MSELoss()
+
+    def get(self) -> Module:
+        """
+        Returns the appropriate loss function for the task.
+
+        Returns:
+            nn.Module: The loss function.
+        """
+        return self.loss_fn
