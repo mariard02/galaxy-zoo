@@ -137,13 +137,6 @@ class GalaxyCNNMLP(Module):
                 kernel_size=convolution_kernel_size,
             ),
             AvgPool2d(kernel_size=2),
-            DoubleConvolutionBlock(
-                channel_count_hidden,
-                channel_count_hidden,
-                channel_count_hidden,
-                kernel_size=convolution_kernel_size,
-            ),
-            AvgPool2d(kernel_size=2),
         )
 
         # Calculate flattened size
@@ -156,8 +149,6 @@ class GalaxyCNNMLP(Module):
             Linear(flattened_size, mlp_hidden_unit_count),
             ReLU(),
             Linear(mlp_hidden_unit_count, mlp_hidden_unit_count // 2),
-            ReLU(),
-            Linear(mlp_hidden_unit_count // 2, mlp_hidden_unit_count // 2),
             ReLU(),
             Linear(mlp_hidden_unit_count // 2, output_units),
         )

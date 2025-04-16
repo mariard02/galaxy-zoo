@@ -57,7 +57,8 @@ def prepare_config(
     return load_config(output_path)
 
 transform = transforms.Compose([
-    transforms.ToTensor(),  # Convierte PIL.Image a torch.Tensor con valores entre 0 y 1
+    transforms.Resize((128, 128)),  # Downsample
+    transforms.ToTensor()
 ])
 
 def main():
@@ -90,7 +91,7 @@ def main():
 
     # Load a dataset with the data
     print("\nLoading the dataset. \n")
-    galaxy_dataset = load_image_dataset(Path("data/images/images_training_rev1"), Path("data/labels.csv"), transform=transform)   
+    galaxy_dataset = load_image_dataset(Path("data/images/images_training_rev1"), Path("data/exercise_1/labels.csv"), transform=transform)   
 
     print("Preprocessing the data. \n")
     preprocessor = GalaxyPreprocessor()
@@ -112,8 +113,8 @@ def main():
 
     loss = get_loss(config=config)
 
-    print("Training...")
-    
+    print("Training... \n")
+
     training_summary = galaxy_classification.fit(
         network,
         optimizer,
@@ -123,7 +124,7 @@ def main():
         config.epoch_count,
     )
 
-    
+    # TO DO: ADD PLOTS
 
     print_divider()
    

@@ -220,12 +220,18 @@ def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
 
         # Get predicted labels by taking the class with the highest probability
         labels_predicted = labels_predicted.argmax(dim=1)
+
+        # Convert one-hot labels to class indices if necessary
+        if labels.ndimension() > 1:
+            labels = labels.argmax(dim=1)
+
         correct_prediction_count += torch.sum(
             labels_predicted == labels
         ).item()
-        prediction_count += len(batch["images"])
+        prediction_count += len(images)  # Corrected this line
 
     return correct_prediction_count / prediction_count
+
 
 
 def fit(
