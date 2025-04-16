@@ -61,6 +61,10 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
+def save_hyperparameters(path: Path, config: NetworkConfig):
+    with open(path, "w") as hyperparameter_cache:
+        yaml.dump(asdict(config), hyperparameter_cache)
+
 def main():
     """
     Main entry point of the script.
@@ -113,6 +117,8 @@ def main():
 
     loss = get_loss(config=config)
 
+    print_divider()
+
     print("Training... \n")
 
     training_summary = galaxy_classification.fit(
@@ -124,10 +130,26 @@ def main():
         config.epoch_count,
     )
 
-    # TO DO: ADD PLOTS
+    print(
+        f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf"
+    )
+    os.makedirs(f"outputs/{cli.run_name}/plots", exist_ok=True)
+    training_summary.save_plot(
+        Path(f"outputs/{cli.run_name}/plots/training_summary.pdf")
+    )
 
-    print_divider()
-   
+    print(
+        f"Saving network parameters and hyperparameters in outputs/{cli.run_name}/classifier"
+    )
+    os.makedirs(f"outputs/{cli.run_name}/classifier", exist_ok=True)
+    torch.save(
+        network.state_dict(), f"outputs/{cli.run_name}/classifier/parameters.pth"
+    )
+
+    save_hyperparameters(
+        Path(f"outputs/{cli.run_name}/classifier/hyperparameters.yaml"),
+        config.network,
+    )
 
 if __name__ == "__main__":
     # Set up basic logging configuration

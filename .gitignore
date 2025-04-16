@@ -1,0 +1,27 @@
+# Environment configuration files and folders
+/.devenv/
+/.devenv.flake.nix
+/devenv.lock
+/devenv.nix
+/devenv.yaml
+/.direnv/
+/.envrc
+
+# macOS system file
+.DS_Store
+
+# VSCode editor settings
+.vscode/
+
+# Python cache files
+__pycache__/
+
+# Output files and folders
+/outputs/
+
+# Data files
+/data/
+/data/images/*
+
+# Package metadata
+/galaxy_zoo.egg-info/
