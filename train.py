@@ -56,10 +56,48 @@ def prepare_config(
         )
     return load_config(output_path)
 
+class AutoNormalizeTransform(torch.nn.Module):
+    def __init__(self, image_dir: Path, label_path: Path, image_size=(32, 32), batch_size=64):
+        super().__init__()
+
+        # Transformación base sin normalizar, usada solo para calcular stats
+        base_transform = transforms.Compose([
+            transforms.Resize(image_size),
+            transforms.ToTensor()
+        ])
+        temp_dataset = load_image_dataset(image_dir, label_path, transform=base_transform)
+        loader = DataLoader(temp_dataset, batch_size=batch_size, shuffle=False)
+
+        mean = 0.
+        std = 0.
+        nb_samples = 0.
+
+        for data, _ in loader:
+            batch_samples = data.size(0)
+            data = data.view(batch_samples, data.size(1), -1)
+            mean += data.mean(2).sum(0)
+            std += data.std(2).sum(0)
+            nb_samples += batch_samples
+
+        mean /= nb_samples
+        std /= nb_samples
+
+        self.normalize = transforms.Normalize(mean=mean.tolist(), std=std.tolist())
+
+    def forward(self, x):
+        return self.normalize(x)
+
+
 transform = transforms.Compose([
-    transforms.Resize((128, 128)),  # Downsample
-    transforms.ToTensor()
+    transforms.Resize((128, 128)),
+    transforms.Lambda(lambda x: transforms.functional.crop(x, 32, 32, 64, 64)),
+    transforms.ToTensor(),
+    AutoNormalizeTransform(
+        image_dir=Path("data/images/images_training_rev1"),
+        label_path=Path("data/exercise_2/labels.csv"),
+    ),
 ])
+
 
 def save_hyperparameters(path: Path, config: NetworkConfig):
     with open(path, "w") as hyperparameter_cache:
@@ -113,7 +151,7 @@ def main():
         config.network,
     )
 
-    optimizer = AdamW(network.parameters(), lr = config.learning_rate) # The optimizer does not depend on the task
+    optimizer = AdamW(network.parameters(), lr = config.learning_rate, weight_decay=1.e-5) # The optimizer does not depend on the task
 
     loss = get_loss(config=config)
 
@@ -133,6 +171,7 @@ def main():
     print(
         f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf"
     )
+
     os.makedirs(f"outputs/{cli.run_name}/plots", exist_ok=True)
     training_summary.save_plot(
         Path(f"outputs/{cli.run_name}/plots/training_summary.pdf")
@@ -141,6 +180,7 @@ def main():
     print(
         f"Saving network parameters and hyperparameters in outputs/{cli.run_name}/classifier"
     )
+
     os.makedirs(f"outputs/{cli.run_name}/classifier", exist_ok=True)
     torch.save(
         network.state_dict(), f"outputs/{cli.run_name}/classifier/parameters.pth"

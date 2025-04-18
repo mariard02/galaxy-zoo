@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from torch import Tensor
 import torch
-from torch.nn import Module
+from torch.nn import Module, CrossEntropyLoss, MSELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
@@ -162,23 +162,30 @@ def compute_average_epoch_loss(
     Returns:
         float: The average loss for the epoch.
     """
+    if optimizer is not None:
+        model.train()
+    else: 
+        model.eval()
+
     epoch_loss_train = 0.0
     for batch in dataloader:
         images, labels = batch
 
-        # Zero the gradients if an optimizer is provided
-        if optimizer is not None:
-            optimizer.zero_grad()
-
+        if isinstance(loss, CrossEntropyLoss):  # Convert one-hot to class indices
+            labels = labels.argmax(dim=1).long()
+        elif isinstance(loss, MSELoss):
+            labels = labels.float()
         # Forward pass
         labels_predicted = model(images)
+
         loss_batch = loss(labels_predicted, labels)
 
         # Backward pass and optimization if an optimizer is provided
         if optimizer is not None:
+            optimizer.zero_grad()
             loss_batch.backward()
-            optimizer.step()
 
+            optimizer.step()
         # Accumulate loss
         epoch_loss_train += loss_batch.item()
 
@@ -203,7 +210,7 @@ def compute_mse(network, dataloader):
 
 def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
     """
-    Computes the accuracy of the model on the given data.
+    Computes the accuracy of the model on the given data for multiclass classification tasks.
 
     Args:
         model (Module): The model to evaluate.
@@ -214,8 +221,10 @@ def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
     """
     prediction_count = 0
     correct_prediction_count = 0
+    
     for batch in dataloader:
         images, labels = batch
+
         labels_predicted = model(images)
 
         # Get predicted labels by taking the class with the highest probability
@@ -224,11 +233,10 @@ def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
         # Convert one-hot labels to class indices if necessary
         if labels.ndimension() > 1:
             labels = labels.argmax(dim=1)
-
         correct_prediction_count += torch.sum(
             labels_predicted == labels
         ).item()
-        prediction_count += len(images)  # Corrected this line
+        prediction_count += len(images) 
 
     return correct_prediction_count / prediction_count
 
@@ -259,6 +267,7 @@ def fit(
     summary = TrainingSummary(printing_interval_epochs=1)
 
     for _ in range(epoch_count):
+        
         # Training phase
         network.train()
         epoch_loss_training = compute_average_epoch_loss(

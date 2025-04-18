@@ -7,6 +7,9 @@
 /.direnv/
 /.envrc
 
+# Jupyter notebooks
+.ipynb
+
 # macOS system file
 .DS_Store
 

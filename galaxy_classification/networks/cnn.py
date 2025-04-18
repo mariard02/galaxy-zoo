@@ -16,7 +16,10 @@ from torch.nn import (
     BCEWithLogitsLoss, 
     CrossEntropyLoss, 
     MSELoss,
-    Module
+    Module,
+    LeakyReLU,
+    AdaptiveAvgPool2d,
+    BatchNorm2d
 )
 
 
@@ -136,7 +139,6 @@ class GalaxyCNNMLP(Module):
                 channel_count_hidden,
                 kernel_size=convolution_kernel_size,
             ),
-            AvgPool2d(kernel_size=2),
         )
 
         # Calculate flattened size
@@ -148,9 +150,13 @@ class GalaxyCNNMLP(Module):
             Flatten(),
             Linear(flattened_size, mlp_hidden_unit_count),
             ReLU(),
-            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count // 2),
+            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count//2),
             ReLU(),
-            Linear(mlp_hidden_unit_count // 2, output_units),
+            Linear(mlp_hidden_unit_count//2, mlp_hidden_unit_count),
+            ReLU(),
+            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count),
+            ReLU(),
+            Linear(mlp_hidden_unit_count, output_units, bias=True),
         )
 
         # No activation function here; it's handled by the loss function

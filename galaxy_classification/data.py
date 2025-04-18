@@ -87,7 +87,7 @@ class GalaxyDataset(Dataset):
         # Retrieve the corresponding label
         label = self._get_label(img_path)
 
-        return image, torch.tensor(label.values, dtype=torch.float32)
+        return image, torch.tensor(label.values, dtype=torch.long)
 
     def _get_label(self, img_path):
         """
@@ -152,7 +152,7 @@ class GalaxyPreprocessor:
     
     The preprocessing can be undone by reversing the scaling transformation.
     """
-    def __init__(self, scale_factor=256.0):
+    def __init__(self, scale_factor=1):
         """
         Initialize the GalaxyPreprocessor with a scaling factor.
         
@@ -244,7 +244,7 @@ class SplitGalaxyDataLoader:
         training_dataset, validation_dataset = torch.utils.data.random_split(
             dataset,
             lengths=[train_size, validation_size],
-            generator=Generator().manual_seed(15),  # Ensuring reproducibility of the split
+            generator=Generator().manual_seed(20),  # Ensuring reproducibility of the split
         )
 
         # Create DataLoader objects for both training and validation datasets
