@@ -8,7 +8,7 @@
 /.envrc
 
 # Jupyter notebooks
-.ipynb
+*.ipynb
 
 # macOS system file
 .DS_Store
