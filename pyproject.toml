@@ -16,7 +16,7 @@ dependencies = [
     "torch>=2.6.0",
     "torchvision>=0.21.0",
     "colorful",
-    "sklearn"
+    "scikit-learn"
 ]
 
 [tool.setuptools.packages.find]

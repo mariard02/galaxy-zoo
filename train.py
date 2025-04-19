@@ -30,7 +30,7 @@ class TrainingCli:
     no_config_edit: bool = False
 
 @dataclass
-class TrainingConfig:
+class TrainingConfig: 
     epoch_count: int
     batch_size: int
     learning_rate: float
