@@ -15,6 +15,7 @@ from galaxy_classification.networks import *
 import galaxy_classification
 from asciiart import *
 
+
 cf.use_style('monokai')
 
 # Dataclass to load the data from the run
@@ -94,7 +95,7 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     AutoNormalizeTransform(
         image_dir=Path("data/images/images_training_rev1"),
-        label_path=Path("data/exercise_2/labels.csv"),
+        label_path=Path("data/exercise_1/labels.csv"),
     ),
 ])
 
@@ -152,8 +153,11 @@ def main():
     )
 
     optimizer = AdamW(network.parameters(), lr = config.learning_rate, weight_decay=1.e-5) # The optimizer does not depend on the task
+   
+    weights_binary = GalaxyWeightsClassification(galaxy_dataset)
+    weights = weights_binary.get_weights()
 
-    loss = get_loss(config=config)
+    loss = get_loss(config=config, weight = weights)
 
     print_divider()
 

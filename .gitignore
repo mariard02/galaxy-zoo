@@ -10,6 +10,9 @@
 # Jupyter notebooks
 *.ipynb
 
+# text files
+*.txt
+
 # macOS system file
 .DS_Store
 

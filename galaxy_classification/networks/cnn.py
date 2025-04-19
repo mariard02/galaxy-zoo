@@ -187,7 +187,7 @@ class LossFunction:
             - "regression"
     """
 
-    def __init__(self, task_type: Literal["classification_binary", "classification_multiclass", "regression"]):
+    def __init__(self, task_type: Literal["classification_binary", "classification_multiclass", "regression"], weight: Tensor):
         VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
         if task_type not in VALID_TASK_TYPES:
             raise ValueError(f"Unsupported task_type: {task_type}. Must be one of {VALID_TASK_TYPES}")
@@ -199,7 +199,7 @@ class LossFunction:
             self.loss_fn = BCEWithLogitsLoss()
         elif self.task_type == "classification_multiclass":
             # Assumes model output uses raw logits (no Softmax)
-            self.loss_fn = CrossEntropyLoss()
+            self.loss_fn = CrossEntropyLoss(weight = weight)
         elif self.task_type == "regression":
             self.loss_fn = MSELoss()
 

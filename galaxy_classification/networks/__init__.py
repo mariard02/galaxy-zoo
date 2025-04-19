@@ -25,9 +25,9 @@ def build_network(
         case _:
             raise ValueError(f"Unsupported network config: {type(config.network)}")
         
-def get_loss(config: NetworkConfig):
+def get_loss(config: NetworkConfig, weight = None):
     match config.network: # Protection in case in the future I add different networks.
         case GalaxyClassificationCNNConfig(task_type=task_type):
-            return LossFunction(task_type=task_type).get()
+            return LossFunction(task_type=task_type, weight=weight).get()
         case _:
             raise ValueError(f"Unsupported network config: {type(config.network)}")

@@ -8,6 +8,7 @@ from torchvision import transforms
 import pandas as pd
 import numpy as np
 from PIL import Image
+from sklearn.utils.class_weight import compute_class_weight
 
 # Function to get the label for an image from its filename
 def img_label(img, labels_df):
@@ -117,8 +118,6 @@ class GalaxyDataset(Dataset):
         except AttributeError:
             raise AttributeError("The loaded image does not have a 'shape' attribute. "
                                 "Make sure your 'transform' function converts the image to a tensor.")
-
-
 
 def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> GalaxyDataset:
     """
@@ -254,3 +253,55 @@ class SplitGalaxyDataLoader:
         self.validation_dataloader = DataLoader(
             validation_dataset, batch_size=batch_size, shuffle=True
         )
+
+class GalaxyWeightsClassification:
+    """
+    Class to compute smoothed class weights for galaxy classification.
+
+    This class combines automatically computed class weights using `compute_class_weight`
+    (which balances according to class frequency in the dataset) with uniform weights.
+    The `alpha` parameter controls the balance between these two approaches.
+
+    Attributes:
+    -----------
+    weights : np.ndarray
+        Array containing the smoothed weights for each class.
+
+    Methods:
+    --------
+    get_weights():
+        Returns the weights as a PyTorch tensor, ready to be used in loss functions
+        like CrossEntropyLoss.
+    """
+
+    def __init__(
+        self,
+        dataset: GalaxyDataset,  # Dataset containing one-hot encoded labels
+        alpha=1.0  # Weight of the balanced contribution (1 = fully balanced, 0 = fully uniform)
+    ):
+        # Convert one-hot encoded labels to class indices (e.g., [0,1,0] -> 1)
+        label_classes = np.argmax(dataset.labels_df.values, axis=1)
+
+        # Compute balanced weights based on class frequencies
+        balanced_weights = compute_class_weight(
+            class_weight="balanced",
+            classes=np.unique(label_classes),
+            y=label_classes
+        )
+
+        # Create uniform weights (equal weight for each class)
+        uniform_weights = np.ones_like(balanced_weights)
+
+        # Interpolate between balanced and uniform weights using alpha
+        self.weights = alpha * balanced_weights + (1 - alpha) * uniform_weights
+
+    def get_weights(self):
+        """
+        Returns the computed class weights as a PyTorch tensor.
+
+        Returns:
+        --------
+        torch.Tensor
+            A float32 tensor containing the class weights.
+        """
+        return torch.tensor(self.weights, dtype=torch.float32)

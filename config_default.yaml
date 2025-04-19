@@ -1,16 +1,16 @@
 training:
-  epoch_count: 20
-  batch_size: 32
-  learning_rate: 0.01
+  epoch_count: 60
+  batch_size: 64
+  learning_rate: 0.001
 
-  validation_fraction: 0.6
+  validation_fraction: 0.75
 
   network:
     channel_count_hidden: 16
     convolution_kernel_size: 3
     mlp_hidden_unit_count: 64
     output_units: 3
-    task_type: regression
+    task_type: classification_multiclass
 
 evaluation:
   batch_size: 1024

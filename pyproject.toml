@@ -15,7 +15,8 @@ dependencies = [
     "tables>=3.10.2",
     "torch>=2.6.0",
     "torchvision>=0.21.0",
-    "colorful"
+    "colorful",
+    "sklearn"
 ]
 
 [tool.setuptools.packages.find]
