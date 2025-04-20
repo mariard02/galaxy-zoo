@@ -151,12 +151,13 @@ class GalaxyPreprocessor:
     
     The preprocessing can be undone by reversing the scaling transformation.
     """
-    def __init__(self, scale_factor=1):
+    def __init__(self, scale_factor=1.):
         """
         Initialize the GalaxyPreprocessor with a scaling factor.
         
         :param scale_factor: A float representing the factor by which to scale the images. 
-                              Default is 256.0.
+                              Default is 1.0, because transform.toTensor() already makes this 
+                              transformation.
         """
         self.scale_factor = scale_factor
 
@@ -253,6 +254,70 @@ class SplitGalaxyDataLoader:
         self.validation_dataloader = DataLoader(
             validation_dataset, batch_size=batch_size, shuffle=True
         )
+
+class AutoNormalizeTransform(torch.nn.Module):
+    """
+    Custom transformation module that automatically calculates and applies 
+    normalization to images based on their dataset. This module computes 
+    the mean and standard deviation of the dataset and uses these values 
+    to normalize the images during the forward pass.
+
+    Args:
+        image_dir (Path): The directory where the image files are stored.
+        label_path (Path): The path to the CSV file containing the labels.
+        image_size (tuple, optional): Desired image size after resizing. Default is (32, 32).
+        batch_size (int, optional): The batch size used for calculating statistics. Default is 64.
+    """
+    
+    def __init__(self, image_dir: Path, label_path: Path, image_size=(32, 32), batch_size=64):
+        super().__init__()
+
+        # Base transformation for resizing and converting images to tensors.
+        # This is used only for calculating the statistics (mean and std).
+        base_transform = transforms.Compose([
+            transforms.Resize(image_size),  # Resize images to the specified size
+            transforms.ToTensor()           # Convert images to Tensor format (with values in [0, 1])
+        ])
+        
+        # Create a temporary dataset using the provided image and label paths, applying the base transformation.
+        temp_dataset = load_image_dataset(image_dir, label_path, transform=base_transform)
+        
+        # DataLoader is used to load the dataset in batches without shuffling.
+        loader = DataLoader(temp_dataset, batch_size=batch_size, shuffle=False)
+
+        # Initialize variables to accumulate the mean, std, and number of samples.
+        mean = 0.
+        std = 0.
+        nb_samples = 0.
+
+        # Iterate through the DataLoader to calculate the mean and std for the dataset.
+        for data, _ in loader:
+            batch_samples = data.size(0)  # Get the batch size
+            data = data.view(batch_samples, data.size(1), -1)  # Flatten the images to 2D for mean/std computation
+
+            # Sum the means and stds across the batch (per channel).
+            mean += data.mean(2).sum(0)  # Compute the mean for each channel
+            std += data.std(2).sum(0)    # Compute the standard deviation for each channel
+            nb_samples += batch_samples  # Count the number of samples processed
+
+        # Calculate the final mean and std by averaging over all samples.
+        mean /= nb_samples
+        std /= nb_samples
+
+        # Create a normalization transform using the calculated mean and std.
+        self.normalize = transforms.Normalize(mean=mean.tolist(), std=std.tolist())
+
+    def forward(self, x):
+        """
+        Forward pass for normalizing the input image tensor.
+        
+        Args:
+            x (Tensor): Input image tensor to be normalized.
+        
+        Returns:
+            Tensor: Normalized image tensor.
+        """
+        return self.normalize(x)
 
 class GalaxyWeightsClassification:
     """

@@ -114,10 +114,11 @@ class TrainingSummary:
         plt.rcParams.update({
             "text.usetex": True,
             "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "axes.unicode_minus": False,
             "text.latex.preamble": r"\usepackage{lmodern}"
         })
-
-        
+       
         ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
         ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
         ax_loss.set_ylabel(r"$\mathrm{Loss}$")
