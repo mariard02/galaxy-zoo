@@ -102,47 +102,33 @@ class TrainingSummary:
 
     def save_plot(self, path: Path):
         """
-        Saves a plot of the training and validation losses and accuracies over epochs.
+        Saves a plot with two subplots: one for losses and one for accuracies over epochs.
 
         Args:
             path (Path): The path to save the plot to.
         """
-        # Create a figure and axis for loss plot
-        figure, axes_loss = plt.subplots()
-
         epoch_numbers = list(range(self.epoch_index))
-        axes_loss.plot(
-            epoch_numbers, self.training_losses, label="training loss", color="C0"
-        )
-        axes_loss.plot(
-            epoch_numbers, self.validation_losses, label="validation loss", color="C1"
-        )
-        axes_loss.set_xlabel("epoch")
-        axes_loss.set_ylabel("loss")
-        axes_loss.legend()
 
-        # Create a second y-axis for accuracy plot
-        axes_accuracy = axes_loss.twinx()
-        axes_accuracy.plot(
-            epoch_numbers,
-            self.training_accuracies,
-            label="training accuracy",
-            color="C0",
-            linestyle="dashed",
-        )
-        axes_accuracy.plot(
-            epoch_numbers,
-            self.validation_accuracies,
-            label="validation accuracy",
-            color="C1",
-            linestyle="dashed",
-        )
-        axes_accuracy.set_ylabel("accuracy")
-        axes_accuracy.legend()
+        fig, (ax_loss, ax_acc) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
 
-        # Save the figure to the specified path
-        figure.savefig(path, bbox_inches="tight")
+        ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
+        ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
+        ax_loss.set_ylabel("Loss")
+        ax_loss.legend()
+        ax_loss.grid(True)
 
+        ax_acc.plot(epoch_numbers, self.training_accuracies, label="Training Accuracy", color="C0", linestyle="dashed")
+        ax_acc.plot(epoch_numbers, self.validation_accuracies, label="Validation Accuracy", color="C1", linestyle="dashed")
+        ax_acc.set_xlabel("Epoch")
+        ax_acc.set_ylabel("Accuracy")
+        ax_acc.legend()
+        ax_acc.grid(True)
+
+        fig.suptitle("Training and Validation Metrics", fontsize=14)
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
 
 def compute_average_epoch_loss(
     model: Module,
