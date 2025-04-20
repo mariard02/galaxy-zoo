@@ -167,19 +167,31 @@ def compute_average_epoch_loss(
 
         if isinstance(loss, CrossEntropyLoss):  # Convert one-hot to class indices
             labels = labels.argmax(dim=1).long()
+            labels_predicted = model(images)
+            # Forward pass
+            loss_batch = loss(labels_predicted, labels)
         elif isinstance(loss, MSELoss):
             labels = labels.float()
-        # Forward pass
-        labels_predicted = model(images)
+            labels_predicted = model(images)
+            # Forward pass
+            loss_batch = loss(labels_predicted, labels)
+        else:
+            # This is the case of informed regression
+            target_classification = labels[:, :3].argmax(dim=1).long()
+            target_regression = labels[:, 3:].float()
 
-        loss_batch = loss(labels_predicted, labels)
+            labels_predicted_regression, labels_predicted_classification = model(images)
+
+            # Forward pass
+            loss_batch = loss(labels_predicted_classification, labels_predicted_regression, target_classification, target_regression)
+
 
         # Backward pass and optimization if an optimizer is provided
         if optimizer is not None:
             optimizer.zero_grad()
             loss_batch.backward()
-
             optimizer.step()
+
         # Accumulate loss
         epoch_loss_train += loss_batch.item()
 
@@ -202,39 +214,71 @@ def compute_mse(network, dataloader):
     return mse
 
 
-def compute_accuracy(model: Module, dataloader: DataLoader) -> float:
+def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> float:
     """
-    Computes the accuracy of the model on the given data for multiclass classification tasks.
+    Computes the accuracy (or other appropriate metric) of the model on the given data.
 
     Args:
         model (Module): The model to evaluate.
         dataloader (DataLoader): The dataloader providing the data.
+        task_type (str): The task type (one of 'classification_binary', 'classification_multiclass', 'regression', 'informed_regression').
 
     Returns:
-        float: The accuracy of the model on the data.
+        float: The accuracy (or appropriate metric) of the model on the data.
     """
     prediction_count = 0
     correct_prediction_count = 0
+    regression_loss = 0.0  # For tracking regression loss if needed
     
     for batch in dataloader:
         images, labels = batch
 
+        # Get predictions from the model
         labels_predicted = model(images)
 
-        # Get predicted labels by taking the class with the highest probability
-        labels_predicted = labels_predicted.argmax(dim=1)
+        if task_type in ["classification_binary", "classification_multiclass"]:
+            # For classification tasks, take the class with the highest probability
+            labels_predicted = labels_predicted.argmax(dim=1)
+            
+            # Convert one-hot labels to class indices if necessary
+            if labels.ndimension() > 1:
+                labels = labels.argmax(dim=1)
+            
+            correct_prediction_count += (labels_predicted == labels).sum().item()
+            prediction_count += len(images) 
 
-        # Convert one-hot labels to class indices if necessary
-        if labels.ndimension() > 1:
-            labels = labels.argmax(dim=1)
-        correct_prediction_count += torch.sum(
-            labels_predicted == labels
-        ).item()
-        prediction_count += len(images) 
+        elif task_type == "regression":
+            # For regression tasks, no argmax, instead use Mean Squared Error or another regression metric
+            regression_loss += torch.mean((labels_predicted - labels) ** 2).item()
+            prediction_count += len(images)
+        
+        elif task_type == "informed_regression":
+            # For informed regression, you get both regression and classification outputs
+            output_regression, logits_classification = labels_predicted
+            
+            # For classification part (assuming softmax or similar output)
+            labels_classification = labels[:, :3]  # Assuming the first 3 columns are for classification
+            
+            # Convert one-hot labels to class indices if necessary
+            if labels_classification.ndimension() > 1:
+                labels_classification = labels_classification.argmax(dim=1)
 
+            labels_classification_pred = logits_classification.argmax(dim=1)
+
+            correct_prediction_count += (labels_classification_pred == labels_classification).sum().item()
+
+            # For regression part, calculate the regression loss
+            labels_regression = labels[:, 3:]  # Assuming remaining part of labels is for regression
+            regression_loss += torch.mean((output_regression - labels_regression) ** 2).item()
+
+            prediction_count += len(images)
+
+    # For regression, return the average loss
+    if task_type in ["regression", "informed_regression"]:
+        return regression_loss / prediction_count
+    
+    # For classification, return the accuracy
     return correct_prediction_count / prediction_count
-
-
 
 def fit(
     network: Module,
@@ -260,6 +304,8 @@ def fit(
     """
     summary = TrainingSummary(printing_interval_epochs=1)
 
+    task_type = getattr(network, "task_type")
+
     for _ in range(epoch_count):
         
         # Training phase
@@ -279,8 +325,8 @@ def fit(
             epoch_metric_training = compute_mse(network, training_dataloader)
             epoch_metric_validation = compute_mse(network, validation_dataloader)
         else:
-            epoch_metric_training = compute_accuracy(network, training_dataloader)
-            epoch_metric_validation = compute_accuracy(network, validation_dataloader)
+            epoch_metric_training = compute_accuracy(network, training_dataloader, task_type)
+            epoch_metric_validation = compute_accuracy(network, validation_dataloader, task_type)
 
         # Save the results
         summary.append_epoch_summary(

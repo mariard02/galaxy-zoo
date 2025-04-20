@@ -120,6 +120,10 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
         # Crop a 64x64 region from the center of the image
         transforms.Lambda(lambda x: transforms.functional.crop(x, 32, 32, 64, 64)),
 
+        transforms.RandomHorizontalFlip(),
+        
+        transforms.RandomVerticalFlip(),
+
         # Convert the image to a tensor and scale pixel values to [0, 1]
         transforms.ToTensor(),
 
@@ -128,6 +132,7 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
             image_dir,  # Pass the image directory path
             label_path,  # Pass the label file path
         ),
+
     ])
 
 def save_hyperparameters(path: Path, config: NetworkConfig):
@@ -168,7 +173,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_1/labels.csv")
+    label_path = Path("data/exercise_4/labels.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     
@@ -208,7 +213,7 @@ def main():
     weights_binary = GalaxyWeightsClassification(galaxy_dataset)
     weights = weights_binary.get_weights()
 
-    loss = get_loss(config=config, weight = weights)
+    loss = get_loss(config=config)
 
     print_divider()
 
