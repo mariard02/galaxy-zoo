@@ -110,17 +110,24 @@ class TrainingSummary:
         epoch_numbers = list(range(self.epoch_index))
 
         fig, (ax_loss, ax_acc) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+        
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "text.latex.preamble": r"\usepackage{lmodern}"
+        })
 
+        
         ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
         ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
-        ax_loss.set_ylabel("Loss")
+        ax_loss.set_ylabel(r"$\mathrm{Loss}$")
         ax_loss.legend()
         ax_loss.grid(True)
 
-        ax_acc.plot(epoch_numbers, self.training_accuracies, label="Training Accuracy", color="C0", linestyle="dashed")
-        ax_acc.plot(epoch_numbers, self.validation_accuracies, label="Validation Accuracy", color="C1", linestyle="dashed")
-        ax_acc.set_xlabel("Epoch")
-        ax_acc.set_ylabel("Accuracy")
+        ax_acc.plot(epoch_numbers, self.training_accuracies, label="Training Accuracy", color="C0")
+        ax_acc.plot(epoch_numbers, self.validation_accuracies, label="Validation Accuracy", color="C1")
+        ax_acc.set_xlabel(r"$\mathrm{Epoch}$")
+        ax_acc.set_ylabel(r"$\mathrm{Accuracy}$")
         ax_acc.legend()
         ax_acc.grid(True)
 
