@@ -118,7 +118,7 @@ class GalaxyDataset(Dataset):
         except AttributeError:
             raise AttributeError("The loaded image does not have a 'shape' attribute. "
                                 "Make sure your 'transform' function converts the image to a tensor.")
-
+        
 def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> GalaxyDataset:
     """
     Load galaxy images and their corresponding labels into a custom GalaxyDataset.
@@ -143,116 +143,241 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
 
     # Return the dataset instance using the filtered image paths and labels
     return GalaxyDataset(image_paths, labels_df, transform=transform)
+        
+class CustomAugmentedDataset(Dataset):
+    """
+    A wrapper dataset that applies a special transformation to a specific class
+    while applying a standard transformation to all other samples.
+
+    Attributes:
+    -----------
+    dataset : Dataset
+        The base dataset containing images and labels.
+    transform_normal : callable
+        Standard transformation applied to all images.
+    transform_1_3 : callable
+        Special transformation applied only to class 1.3 samples.
+    """
+    def __init__(self, dataset, transform_normal, transform_1_3):
+        self.dataset = dataset
+        self.transform_normal = self._ensure_tensor_transform(transform_normal)
+        self.transform_1_3 = self._ensure_tensor_transform(transform_1_3)
+        self.file_list = getattr(dataset, 'file_list', None)
+        self.labels_df = getattr(dataset, 'labels_df', None)
+
+    def _ensure_tensor_transform(self, transform):
+        """
+        Ensures the output of the transform is always a tensor.
+        Useful in case the input transform does not convert to tensor.
+        """
+        if transform is None:
+            return transforms.ToTensor()
+        
+        return transforms.Compose([
+            transform,
+            transforms.Lambda(lambda x: x if isinstance(x, torch.Tensor) else transforms.ToTensor()(x))
+        ])
+
+    def __getitem__(self, idx):
+        """
+        Returns a transformed image and its label.
+        Applies `transform_1_3` if the sample belongs to class 1.3,
+        otherwise applies `transform_normal`.
+
+        Parameters:
+        -----------
+        idx : int
+            Index of the sample to retrieve.
+
+        Returns:
+        --------
+        (img, label) : tuple
+            Transformed image and its corresponding label.
+        """
+        img, label = self.dataset[idx]
+        
+        # Apply the normal transform first (guaranteed to return a tensor)
+        img = self.transform_normal(img)
+
+        # Decide whether to apply the special class 1.3 transform
+        if isinstance(label, torch.Tensor):
+            if label.dim() > 0:  # Multi-label tensor
+                class_idx = 1  # Index corresponding to class 1.3 in your label encoding
+                if label[class_idx] == 1:
+                    img = self.transform_1_3(img)
+            else:  # Scalar tensor
+                if label.item() == 1.3:
+                    img = self.transform_1_3(img)
+        elif isinstance(label, (np.ndarray, list)):
+            if any(x == 1.3 for x in label):
+                img = self.transform_1_3(img)
+
+        return img, label
+
+    def __len__(self):
+        """Returns the total number of samples in the dataset."""
+        return len(self.dataset)
+
+    def image_shape(self):
+        """
+        Returns the shape of a transformed image.
+        Useful to verify dimensions before defining a model.
+        """
+        try:
+            img, _ = self[0]
+            return img.shape
+        except Exception as e:
+            raise RuntimeError(f"Could not determine image shape: {str(e)}")
+
+
+def load_custom_image_dataset(dataset: GalaxyDataset, transform=None, transform2=None) -> GalaxyDataset:
+    """
+    Wraps a GalaxyDataset with custom transformations using CustomAugmentedDataset.
+
+    Parameters:
+    -----------
+    dataset : GalaxyDataset
+        The base dataset containing image-label pairs.
+    transform : callable, optional
+        The standard transformation to apply to all images.
+    transform2 : callable, optional
+        The special transformation to apply only to class 1.3 images.
+
+    Returns:
+    --------
+    CustomAugmentedDataset
+        A dataset that applies different transforms depending on the label.
+    """
+    return CustomAugmentedDataset(dataset=dataset, transform_normal=transform, transform_1_3=transform2)
+
 
 # TO DO: PREPARE THE PREPROCESSING 
 class GalaxyPreprocessor:
     """
-    Class to preprocess galaxy images by applying a scaling transformation.
-    
-    The preprocessing can be undone by reversing the scaling transformation.
+    A class to apply and undo preprocessing transformations on Galaxy datasets,
+    such as scaling image pixel values.
     """
     def __init__(self, scale_factor=1.):
         """
-        Initialize the GalaxyPreprocessor with a scaling factor.
-        
-        :param scale_factor: A float representing the factor by which to scale the images. 
-                              Default is 1.0, because transform.toTensor() already makes this 
-                              transformation.
+        Initializes the preprocessor with a scale factor.
+
+        Parameters:
+        -----------
+        scale_factor : float
+            Factor by which to divide image tensors. Default is 1 (no scaling).
         """
         self.scale_factor = scale_factor
 
-    def apply_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
+    def apply_preprocessing(self, dataset):
         """
-        Apply preprocessing to the dataset, which includes the scaling transformation.
-        
-        This method creates a new transformation function that applies the existing 
-        transformation (if any) followed by scaling the images by the defined scale factor.
-        
-        :param dataset: The GalaxyDataset to be preprocessed.
-        :return: A new GalaxyDataset with the preprocessing transformation applied.
-        """
-        # Define a new transformation function that first applies any existing transformation
-        # and then scales the image.
-        def new_transform(img):
-            if dataset.transform:
-                img = dataset.transform(img)
-            return img / self.scale_factor
-        
-        # Return a new dataset with the new transformation
-        return GalaxyDataset(
-            file_list=dataset.file_list,
-            labels_df=dataset.labels_df,
-            transform=new_transform
-        )
+        Applies preprocessing (e.g. scaling) to the dataset images.
 
-    def undo_preprocessing(self, dataset: GalaxyDataset) -> GalaxyDataset:
+        Parameters:
+        -----------
+        dataset : GalaxyDataset or CustomAugmentedDataset
+            The dataset to preprocess.
+
+        Returns:
+        --------
+        GalaxyDataset or CustomAugmentedDataset
+            A new dataset with the preprocessing applied.
         """
-        Undo the preprocessing (i.e., the scaling) applied earlier to the dataset.
-        
-        This method creates a new transformation function that reverses the scaling transformation
-        by multiplying the image by the scale factor instead of dividing.
-        
-        :param dataset: The GalaxyDataset from which to undo the preprocessing.
-        :return: A new GalaxyDataset with the inverse transformation applied.
-        """
-        # Define a new transformation function that applies the inverse of the scaling transformation
         def new_transform(img):
-            if dataset.transform:
+            # Convert to tensor if not already and apply scaling
+            if not isinstance(img, torch.Tensor):
+                img = transforms.ToTensor()(img)
+            return img / self.scale_factor
+
+        if isinstance(dataset, CustomAugmentedDataset):
+            # Wrap original inner dataset with the new transform
+            return CustomAugmentedDataset(
+                dataset=dataset.dataset,
+                transform_normal=new_transform,
+                transform_1_3=dataset.transform_1_3
+            )
+        else:
+            return GalaxyDataset(
+                file_list=dataset.file_list,
+                labels_df=dataset.labels_df,
+                transform=new_transform
+            )
+
+    def undo_preprocessing(self, dataset) -> Dataset:
+        """
+        Reverts the preprocessing applied to a dataset.
+
+        Parameters:
+        -----------
+        dataset : GalaxyDataset or CustomAugmentedDataset
+            The dataset to revert preprocessing on.
+
+        Returns:
+        --------
+        GalaxyDataset or CustomAugmentedDataset
+            A dataset with the inverse preprocessing applied.
+        """
+        # Get the base dataset (in case it's wrapped in CustomAugmentedDataset)
+        base_dataset = dataset.dataset if isinstance(dataset, CustomAugmentedDataset) else dataset
+
+        def new_transform(img):
+            # Reapply original transform before undoing scaling
+            if isinstance(dataset, CustomAugmentedDataset):
+                img = dataset.transform_normal(img)
+            elif hasattr(dataset, 'transform') and dataset.transform:
                 img = dataset.transform(img)
             return img * self.scale_factor
 
-        # Return a new dataset with the inverse transformation
-        return GalaxyDataset(
-            file_list=dataset.file_list,
-            labels_df=dataset.labels_df,
-            transform=new_transform
-        )
+        if isinstance(dataset, CustomAugmentedDataset):
+            return CustomAugmentedDataset(
+                dataset=dataset.dataset,
+                transform_normal=new_transform,
+                transform_1_3=dataset.transform_1_3
+            )
+        else:
+            return GalaxyDataset(
+                file_list=base_dataset.file_list,
+                labels_df=base_dataset.labels_df,
+                transform=new_transform
+            )
 
 @dataclass
 class SplitGalaxyDataLoader:
-    """
-    Data loader class for splitting a GalaxyDataset into training and validation sets.
-    
-    The dataset is divided based on a specified validation fraction, and DataLoader objects are
-    created for both the training and validation datasets.
-    """
     training_dataloader: DataLoader
     validation_dataloader: DataLoader
 
     def __init__(
         self,
-        dataset: GalaxyDataset,  # GalaxyDataset used as input
-        validation_fraction: float,  # Fraction of data to be used for validation
-        batch_size: int,  # Batch size for the data loaders
+        dataset: Dataset,  # Changed to accept generic Dataset
+        validation_fraction: float,
+        batch_size: int,
+        random_seed: int = 42
     ):
-        """
-        Initialize the data loaders for training and validation datasets.
-        
-        The dataset is split based on the provided validation fraction, and 
-        DataLoader objects are created for both training and validation sets.
-        
-        :param dataset: GalaxyDataset containing the galaxy images and their labels.
-        :param validation_fraction: A float representing the fraction of the dataset to be used 
-                                    for validation.
-        :param batch_size: The batch size to be used in the DataLoader objects.
-        """
-        # Calculate the number of samples for training and validation sets
-        validation_size = int(validation_fraction * len(dataset))
-        train_size = len(dataset) - validation_size
+        # Verify the dataset has length
+        if not hasattr(dataset, '__len__'):
+            raise ValueError("Input dataset must implement __len__()")
 
-        # Split the dataset into training and validation sets
+        # Calculate split sizes
+        dataset_length = len(dataset)
+        validation_size = int(validation_fraction * dataset_length)
+        train_size = dataset_length - validation_size
+
+        # Split the dataset
         training_dataset, validation_dataset = torch.utils.data.random_split(
             dataset,
             lengths=[train_size, validation_size],
-            generator=Generator().manual_seed(20),  # Ensuring reproducibility of the split
+            generator=Generator().manual_seed(random_seed)
         )
 
-        # Create DataLoader objects for both training and validation datasets
+        # Create dataloaders
         self.training_dataloader = DataLoader(
-            training_dataset, batch_size=batch_size, shuffle=True
+            training_dataset,
+            batch_size=batch_size,
+            shuffle=True
         )
         self.validation_dataloader = DataLoader(
-            validation_dataset, batch_size=batch_size, shuffle=True
+            validation_dataset,
+            batch_size=batch_size,
+            shuffle=False
         )
 
 class AutoNormalizeTransform(torch.nn.Module):
