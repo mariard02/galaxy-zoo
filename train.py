@@ -120,6 +120,7 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
         transforms.Lambda(lambda x: transforms.functional.crop(x, 32, 32, 64, 64)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
+        transforms.RandomRotation(30),
         transforms.ToTensor(),
         AutoNormalizeTransform(image_dir, label_path),
     ])
@@ -127,8 +128,8 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
 # Additional transformation for data augmentation
 transform_1_3 = transforms.Compose([
     transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(30),
-    transforms.ColorJitter(brightness=0.3, contrast=0.3),
+    transforms.RandomVerticalFlip(),
+    transforms.RandomRotation(60),
 ])
 
 

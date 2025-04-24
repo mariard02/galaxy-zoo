@@ -1,7 +1,7 @@
 training:
-  epoch_count: 30
+  epoch_count: 50
   batch_size: 64
-  learning_rate: 0.001
+  learning_rate: 1.e-3
 
   validation_fraction: 0.8
 

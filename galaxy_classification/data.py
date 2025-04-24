@@ -201,16 +201,9 @@ class CustomAugmentedDataset(Dataset):
 
         # Decide whether to apply the special class 1.3 transform
         if isinstance(label, torch.Tensor):
-            if label.dim() > 0:  # Multi-label tensor
-                class_idx = 1  # Index corresponding to class 1.3 in your label encoding
-                if label[class_idx] == 1:
+            if label.dim() > 0:  
+                if label[2] == 1:
                     img = self.transform_1_3(img)
-            else:  # Scalar tensor
-                if label.item() == 1.3:
-                    img = self.transform_1_3(img)
-        elif isinstance(label, (np.ndarray, list)):
-            if any(x == 1.3 for x in label):
-                img = self.transform_1_3(img)
 
         return img, label
 
