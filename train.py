@@ -180,8 +180,9 @@ def main():
 
     print("\nLoading the dataset. \n")
     transform = build_transform(image_dir=image_dir, label_path=label_path)
-    galaxy_dataset = load_image_dataset(image_dir, label_path, transform=transform)
-    galaxy_dataset = load_custom_image_dataset(galaxy_dataset, transform, transform_1_3)
+    galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=transform)
+
+    galaxy_dataset = load_custom_image_dataset(galaxy_dataset,transform, transform_1_3)
 
     print("Preprocessing the data. \n")
     preprocessor = GalaxyPreprocessor()

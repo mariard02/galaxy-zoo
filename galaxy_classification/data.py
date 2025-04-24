@@ -49,46 +49,31 @@ def trim_file_list(files, labels_df):
 
 # Dataset class for loading galaxy images
 class GalaxyDataset(Dataset):
-    """
-    Custom PyTorch Dataset for loading galaxy images and their corresponding labels.
-
-    Parameters:
-    file_list (list of Path): List of image file paths. Filenames (without extensions) are assumed to be galaxy IDs.
-    labels_df (pandas.DataFrame): DataFrame indexed by galaxy IDs with corresponding label information.
-    transform (callable, optional): Optional transformation to be applied on a PIL image (e.g., torchvision transforms).
-    """
-    def __init__(self, file_list, labels_df, transform=None):
-        # Filter the file list to include only files with IDs present in labels_df
+    def __init__(self, file_list, labels_df, transform=None, task=None):
         self.file_list = trim_file_list(file_list, labels_df)
         self.labels_df = labels_df
         self.transform = transform
+        self.task = task  # Añadido
+
+    def __getitem__(self, idx):
+        img_path = self.file_list[idx]
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+
+        label = self._get_label(img_path)
+
+        # Cambio de tipo en función de la tarea
+        if self.task == "classification_multiclass":
+            label_tensor = torch.tensor(label.values, dtype=torch.long)
+        else:
+            label_tensor = torch.tensor(label.values, dtype=torch.float32)
+
+        return image, label_tensor
 
     def __len__(self):
         # Return the number of valid image files
         return len(self.file_list)
-
-    def __getitem__(self, idx):
-        """
-        Retrieve the image and label at the given index.
-
-        Returns:
-        image (Tensor): Transformed image tensor.
-        label (Tensor): Corresponding label tensor.
-        """
-        # Get the image path from the list
-        img_path = self.file_list[idx]
-
-        # Open the image and ensure it's in RGB format
-        image = Image.open(img_path).convert("RGB")
-
-        # Apply transformations if specified
-        if self.transform:
-            image = self.transform(image)
-
-        # Retrieve the corresponding label
-        label = self._get_label(img_path)
-
-        return image, torch.tensor(label.values, dtype=torch.long)
 
     def _get_label(self, img_path):
         """
@@ -119,7 +104,7 @@ class GalaxyDataset(Dataset):
             raise AttributeError("The loaded image does not have a 'shape' attribute. "
                                 "Make sure your 'transform' function converts the image to a tensor.")
         
-def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> GalaxyDataset:
+def load_image_dataset(images_dir: Path, labels_path: Path, task = None, transform=None) -> GalaxyDataset:
     """
     Load galaxy images and their corresponding labels into a custom GalaxyDataset.
 
@@ -142,7 +127,7 @@ def load_image_dataset(images_dir: Path, labels_path: Path, transform=None) -> G
         raise ValueError(f"No images found in directory: {images_dir}")
 
     # Return the dataset instance using the filtered image paths and labels
-    return GalaxyDataset(image_paths, labels_df, transform=transform)
+    return GalaxyDataset(image_paths, labels_df, task=task, transform=transform)
         
 class CustomAugmentedDataset(Dataset):
     """
