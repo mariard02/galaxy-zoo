@@ -182,7 +182,7 @@ class CustomAugmentedDataset(Dataset):
         img, label = self.dataset[idx]
         
         # Apply the normal transform first (guaranteed to return a tensor)
-        img = self.transform_normal(img)
+        #img = self.transform_normal(img)
 
         # Decide whether to apply the special class 1.3 transform
         if isinstance(label, torch.Tensor):
