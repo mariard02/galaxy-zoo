@@ -7,6 +7,7 @@ from torch.nn import Module, CrossEntropyLoss, MSELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
+from sklearn.metrics import RocCurveDisplay
 
 # Set the color scheme for the console output
 cf.use_style('monokai')
@@ -344,7 +345,7 @@ def fit(
         )
 
         # --- EARLY STOPPING CHECK ---
-        if best_validation_loss is None or (epoch_loss_validation < best_validation_loss - delta):
+        if best_validation_loss is None or (epoch_loss_validation < best_validation_loss + delta):
             best_validation_loss = epoch_loss_validation
             epochs_without_improvement = 0
         else:
@@ -354,4 +355,75 @@ def fit(
                 break
 
     return summary
+
+
+# Function to plot ROC curves for model evaluation.
+def plot_roc_curves(all_preds, all_labels, config, path: Path):    
+    """
+    Generate and save ROC curves based on the model predictions and ground truth labels.
+    
+    Args:
+        all_preds (Tensor): Model's predicted probabilities for each class (shape: [batch_size, num_classes]).
+        all_labels (Tensor): True labels, either in one-hot encoding or class indices (shape: [batch_size]).
+        config (EvaluationConfig): Configuration object that holds task type (binary or multiclass).
+        path (Path): Path to save the plot.
+    """
+    # Handle multiclass classification
+    if config.task_type == "classification_multiclass":
+        if all_labels.ndim > 1:
+            all_labels = torch.argmax(all_labels, dim=1)  # Convert one-hot to class indices
+
+        fig, ax = plt.subplots(figsize=(8, 6))  # Create a figure with a single axis
+
+        num_classes = all_preds.shape[1]
+        for i in range(num_classes):
+            # Generate true binary labels for class i (1 if class i, else 0)
+            y_true = (all_labels == i).numpy().astype(int)
+            # Extract predicted probabilities for class i
+            y_score = all_preds[:, i].numpy()
+
+            # Plot ROC curve for class i
+            RocCurveDisplay.from_predictions(
+                y_true,
+                y_score,
+                name=f"Class {i}",
+                ax=ax,  # Draw on the same axis
+            )
+
+        # Adjust plot settings
+        ax.plot([0, 1], [0, 1], "k--")  # Random guess line
+        plt.rcParams.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Computer Modern Roman"],
+            "axes.unicode_minus": False,
+            "text.latex.preamble": r"\usepackage{lmodern}"
+        })
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        ax.set_title("ROC Curves")
+        ax.legend()
+        fig.savefig(path, bbox_inches="tight")  # Save the plot to the specified path
+        plt.close(fig)  # Close the plot to free memory
+
+    # Handle binary classification
+    elif config.task_type == "classification_binary":
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        RocCurveDisplay.from_predictions(
+            all_labels.numpy(),
+            all_preds.squeeze().numpy(),
+            name="Binary Classification",
+            ax=ax,
+        )
+
+        ax.plot([0, 1], [0, 1], "k--")  # Random guess line
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        ax.set_title("ROC Curve")
+        ax.grid()
+        ax.legend()
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+
 

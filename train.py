@@ -165,7 +165,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_1/labels.csv")
+    label_path = Path("data/exercise_2/labels.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
@@ -182,7 +182,7 @@ def main():
     transform = build_transform(image_dir=image_dir, label_path=label_path)
     galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=transform)
 
-    #galaxy_dataset = load_custom_image_dataset(galaxy_dataset,transform, transform_1_3)
+    galaxy_dataset = load_custom_image_dataset(galaxy_dataset, None, transform_1_3)
 
     print("Preprocessing the data. \n")
     preprocessor = GalaxyPreprocessor()
@@ -200,11 +200,11 @@ def main():
         config.network,
     )
 
-    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=1.e-5)
+    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-3)
 
     weights_binary = GalaxyWeightsClassification(galaxy_dataset)
     weights = weights_binary.get_weights()
-    loss = get_loss(config=config)
+    loss = get_loss(config=config, weight=None)
 
     print_divider()
     print("Training... \n")
@@ -216,7 +216,7 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
-        patience=5,
+        patience=8,
         delta = 0.001,
     )
 
