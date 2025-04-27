@@ -182,7 +182,7 @@ def main():
     transform = build_transform(image_dir=image_dir, label_path=label_path)
     galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=transform)
 
-    galaxy_dataset = load_custom_image_dataset(galaxy_dataset,transform, transform_1_3)
+    #galaxy_dataset = load_custom_image_dataset(galaxy_dataset,transform, transform_1_3)
 
     print("Preprocessing the data. \n")
     preprocessor = GalaxyPreprocessor()
@@ -216,6 +216,8 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
+        #patience=10,
+        #delta = 0.1,
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")

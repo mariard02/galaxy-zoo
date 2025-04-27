@@ -287,9 +287,12 @@ def fit(
     training_dataloader: DataLoader,
     validation_dataloader: DataLoader,
     epoch_count: int,
+    patience: int | None = None,   
+    delta: float = 0.0,             
 ) -> TrainingSummary:
     """
     Trains the model over multiple epochs and evaluates on both training and validation data.
+    Implements early stopping if patience is specified.
 
     Args:
         network (Module): The neural network to train.
@@ -297,7 +300,9 @@ def fit(
         loss (Callable[[Tensor, Tensor], Tensor]): The loss function.
         training_dataloader (DataLoader): The dataloader for the training data.
         validation_dataloader (DataLoader): The dataloader for the validation data.
-        epoch_count (int): The number of epochs to train the model.
+        epoch_count (int): The maximum number of epochs to train the model.
+        patience (int | None): Number of epochs with no improvement after which training will be stopped.
+        delta (float): Minimum change in validation metric to qualify as an improvement.
 
     Returns:
         TrainingSummary: An object containing the training summary, including loss and accuracy or mse.
@@ -306,8 +311,10 @@ def fit(
 
     task_type = getattr(network, "task_type")
 
-    for _ in range(epoch_count):
-        
+    best_validation_metric = None
+    epochs_without_improvement = 0
+
+    for epoch in range(epoch_count):
         # Training phase
         network.train()
         epoch_loss_training = compute_average_epoch_loss(
@@ -321,7 +328,7 @@ def fit(
         )
 
         # Metrics depending on the task
-        if getattr(network, "task_type", None) == "regression":
+        if task_type == "regression":
             epoch_metric_training = compute_mse(network, training_dataloader)
             epoch_metric_validation = compute_mse(network, validation_dataloader)
         else:
@@ -336,4 +343,15 @@ def fit(
             epoch_metric_validation,
         )
 
+        # --- EARLY STOPPING CHECK ---
+        if best_validation_metric is None or (epoch_metric_validation > best_validation_metric + delta):
+            best_validation_metric = epoch_metric_validation
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+            if patience is not None and epochs_without_improvement >= patience:
+                print((f"\nEarly stopping triggered at epoch {epoch + 1}."))
+                break
+
     return summary
+
