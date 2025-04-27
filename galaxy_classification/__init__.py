@@ -311,7 +311,7 @@ def fit(
 
     task_type = getattr(network, "task_type")
 
-    best_validation_metric = None
+    best_validation_loss = None
     epochs_without_improvement = 0
 
     for epoch in range(epoch_count):
@@ -344,8 +344,8 @@ def fit(
         )
 
         # --- EARLY STOPPING CHECK ---
-        if best_validation_metric is None or (epoch_metric_validation > best_validation_metric + delta):
-            best_validation_metric = epoch_metric_validation
+        if best_validation_loss is None or (epoch_loss_validation < best_validation_loss - delta):
+            best_validation_loss = epoch_loss_validation
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1

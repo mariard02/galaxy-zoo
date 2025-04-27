@@ -216,8 +216,8 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
-        #patience=10,
-        #delta = 0.1,
+        patience=5,
+        delta = 0.001,
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")
