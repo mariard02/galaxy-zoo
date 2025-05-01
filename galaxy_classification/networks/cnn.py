@@ -74,6 +74,9 @@ class DoubleConvolutionBlock(Module):
             padding=kernel_size // 2,
         )
 
+        self.bn1 = BatchNorm2d(channel_count_hidden)
+        self.bn2 = BatchNorm2d(channel_count_out)
+
         self.add_residual = channel_count_in == channel_count_out
 
     def forward(self, image: Tensor) -> Tensor:
@@ -86,8 +89,8 @@ class DoubleConvolutionBlock(Module):
         Returns:
             Tensor: Output tensor after convolution and optional residual addition.
         """
-        image_convolved = functional.relu(self.conv1(image))
-        image_convolved = functional.relu(self.conv2(image_convolved))
+        image_convolved = F.relu(self.bn1(self.conv1(image)))
+        image_convolved = F.relu(self.bn2(self.conv2(image_convolved)))
 
         if self.add_residual:
             return image_convolved + image
@@ -136,13 +139,14 @@ class GalaxyCNNMLP(Module):
             AvgPool2d(kernel_size=2),
             DoubleConvolutionBlock(
                 channel_count_hidden,
-                channel_count_hidden,
-                channel_count_hidden,
+                channel_count_hidden//2,
+                channel_count_hidden//2,
                 kernel_size=convolution_kernel_size,
             ),
             ReLU(),
             AvgPool2d(kernel_size=2),
         )
+        
 
         # Calculate flattened size
         with torch.no_grad():
@@ -151,13 +155,11 @@ class GalaxyCNNMLP(Module):
 
         self.mlp = Sequential(
             Flatten(),
-            Linear(flattened_size, mlp_hidden_unit_count),
+            Linear(flattened_size, mlp_hidden_unit_count, bias = True),
             ReLU(),
-            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count//2),
+            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count // 2, bias = True),
             ReLU(),
-            Linear(mlp_hidden_unit_count//2, mlp_hidden_unit_count),
-            ReLU(),
-            Linear(mlp_hidden_unit_count, output_units, bias=True),
+            Linear(mlp_hidden_unit_count // 2, output_units, bias=True),
         )
 
         # Some variables for the case of informed regression

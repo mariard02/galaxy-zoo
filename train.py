@@ -116,11 +116,11 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
         torch.nn.Module: Composed transform pipeline.
     """
     return transforms.Compose([
-        transforms.Resize((128, 128)),
-        transforms.Lambda(lambda x: transforms.functional.crop(x, 32, 32, 64, 64)),
+        transforms.Resize((424, 424)),
+        transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
-        transforms.RandomRotation(30),
+        transforms.RandomRotation(60),
         transforms.ToTensor(),
         AutoNormalizeTransform(image_dir, label_path),
     ])
@@ -165,7 +165,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_2/labels.csv")
+    label_path = Path("data/exercise_1/labels.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
@@ -204,7 +204,7 @@ def main():
 
     weights_binary = GalaxyWeightsClassification(galaxy_dataset)
     weights = weights_binary.get_weights()
-    loss = get_loss(config=config, weight=None)
+    loss = get_loss(config=config, weight=weights * 0.1)
 
     print_divider()
     print("Training... \n")
@@ -216,8 +216,6 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
-        patience=8,
-        delta = 0.001,
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")

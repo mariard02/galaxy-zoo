@@ -328,7 +328,7 @@ class SplitGalaxyDataLoader:
         dataset: Dataset,  # Changed to accept generic Dataset
         validation_fraction: float,
         batch_size: int,
-        random_seed: int = 42
+        random_seed: int = 34
     ):
         # Verify the dataset has length
         if not hasattr(dataset, '__len__'):

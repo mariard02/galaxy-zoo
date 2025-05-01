@@ -23,7 +23,8 @@ labels_df = galaxy_dataset.labels_df
 # TASK 1: classification model to determine if a galaxy is smooth, has a disk or the image is flawed
 
 # Choose the galaxies that have one attribute bigger than 0.8
-question1 = labels_df[labels_df[["Class1.1", "Class1.2", "Class1.3"]].max(axis=1) > 0.8][["Class1.1", "Class1.2", "Class1.3"]]
+question1 = labels_df[labels_df[["Class1.1", "Class1.2", "Class1.3"]].max(axis=1) > 0.8][["Class1.1", "Class1.2", "Class1.3"]][:3000]
+
 # The max value becomes 1 and the rest 0
 question1 = (question1.eq(question1.max(axis=1), axis=0)).astype(int)
 

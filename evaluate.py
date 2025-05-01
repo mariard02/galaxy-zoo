@@ -58,8 +58,8 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
         torch.nn.Module: A composed transformation pipeline.
     """
     return transforms.Compose([
-        transforms.Resize((128, 128)),  # Resize the images to 128x128
-        transforms.Lambda(lambda x: transforms.functional.crop(x, 32, 32, 64, 64)),  # Crop a region
+        transforms.Resize((424, 424)),
+        transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
         transforms.RandomHorizontalFlip(),  # Random horizontal flip
         transforms.RandomVerticalFlip(),  # Random vertical flip
         transforms.RandomRotation(30),  # Random rotation by 30 degrees
