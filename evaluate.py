@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 import yaml
 
+
 from galaxy_classification import *
 from galaxy_classification.data import *
 from galaxy_classification.networks import *
@@ -137,8 +138,13 @@ def main():
     if all_labels.ndim > 1 and config.task_type == "classification_multiclass":
         all_labels = torch.argmax(all_labels, dim=1)  # Convert one-hot to class indices if needed
     
+    class_names = ["Smooth", "Disk", "Other"]
+
     # Plot the ROC curves and save the plot
-    plot_roc_curves(all_preds, all_labels, config, Path(f"outputs/{cli.run_name}/plots/ROC_curve.pdf"))
+    plot_roc_curves(all_preds, all_labels, config, Path(f"outputs/{cli.run_name}/plots/ROC_curve.pdf"), class_names)
+
+    # Plot the confussion matrix and save the plot
+    plot_confusion_matrix(all_preds, all_labels, config, Path(f"outputs/{cli.run_name}/plots/confussion_matrix.pdf"), class_names)
 
 # Run the main function
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from torch.nn import Module, CrossEntropyLoss, MSELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
-from sklearn.metrics import RocCurveDisplay
+from sklearn.metrics import RocCurveDisplay, confusion_matrix, ConfusionMatrixDisplay
 
 # Set the color scheme for the console output
 cf.use_style('monokai')
@@ -358,7 +358,7 @@ def fit(
 
 
 # Function to plot ROC curves for model evaluation.
-def plot_roc_curves(all_preds, all_labels, config, path: Path):    
+def plot_roc_curves(all_preds, all_labels, config, path: Path, class_names: list[str]):    
     """
     Generate and save ROC curves based on the model predictions and ground truth labels.
     
@@ -367,6 +367,7 @@ def plot_roc_curves(all_preds, all_labels, config, path: Path):
         all_labels (Tensor): True labels, either in one-hot encoding or class indices (shape: [batch_size]).
         config (EvaluationConfig): Configuration object that holds task type (binary or multiclass).
         path (Path): Path to save the plot.
+        class_names (list[str]): List of class names for labeling the axes.
     """
     # Handle multiclass classification
     if config.task_type == "classification_multiclass":
@@ -386,7 +387,7 @@ def plot_roc_curves(all_preds, all_labels, config, path: Path):
             RocCurveDisplay.from_predictions(
                 y_true,
                 y_score,
-                name=f"Class {i}",
+                name=class_names[i],
                 ax=ax,  # Draw on the same axis
             )
 
@@ -426,4 +427,46 @@ def plot_roc_curves(all_preds, all_labels, config, path: Path):
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
 
+def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names: list[str]):
+    """
+    Generate and save a confusion matrix for multiclass classification.
+
+    Args:
+        all_preds (Tensor): Model's predicted probabilities or logits (shape: [batch_size, num_classes]).
+        all_labels (Tensor): True labels, either in one-hot encoding or class indices (shape: [batch_size]).
+        config (EvaluationConfig): Configuration object that holds task type.
+        path (Path): Path to save the plot.
+        class_names (list[str]): List of class names for labeling the axes.
+    """
+    if config.task_type == "classification_multiclass":
+        if all_labels.ndim > 1:
+            all_labels = torch.argmax(all_labels, dim=1)  
+
+        preds = torch.argmax(all_preds, dim=1) 
+
+    elif config.task_type == "classification_binary":
+        if all_preds.ndim > 1 and all_preds.shape[1] == 1:
+            all_preds = all_preds.squeeze(dim=1)
+        preds = (all_preds >= 0.5).long()
+    else:    
+        raise ValueError(f"Unsupported task type: {config.task_type}")
+    
+    cm = confusion_matrix(all_labels.numpy(), preds.numpy(), normalize="true")
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
+    disp.plot(cmap="Blues", ax=ax, xticks_rotation=45)
+
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "axes.unicode_minus": False,
+        "text.latex.preamble": r"\usepackage{lmodern}"
+    })
+
+    ax.set_title("Confusion Matrix")
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
 

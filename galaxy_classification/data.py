@@ -3,7 +3,7 @@ import torch
 from numpy.typing import NDArray
 from pathlib import Path
 from torch import Generator, Tensor
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, random_split, WeightedRandomSampler
 from torchvision import transforms
 import pandas as pd
 import numpy as np
@@ -318,6 +318,7 @@ class GalaxyPreprocessor:
                 transform=new_transform
             )
 
+
 @dataclass
 class SplitGalaxyDataLoader:
     training_dataloader: DataLoader
@@ -325,32 +326,55 @@ class SplitGalaxyDataLoader:
 
     def __init__(
         self,
-        dataset: Dataset,  # Changed to accept generic Dataset
+        dataset: Dataset,
         validation_fraction: float,
         batch_size: int,
-        random_seed: int = 34
+        random_seed: int = 38,
+        class_weights: list = None,  # Optional class weights
+        task = None
     ):
-        # Verify the dataset has length
         if not hasattr(dataset, '__len__'):
             raise ValueError("Input dataset must implement __len__()")
 
-        # Calculate split sizes
         dataset_length = len(dataset)
         validation_size = int(validation_fraction * dataset_length)
         train_size = dataset_length - validation_size
 
-        # Split the dataset
-        training_dataset, validation_dataset = torch.utils.data.random_split(
+        training_dataset, validation_dataset = random_split(
             dataset,
             lengths=[train_size, validation_size],
             generator=Generator().manual_seed(random_seed)
         )
 
-        # Create dataloaders
+        if class_weights is not None:
+            all_labels = [sample[1] for sample in training_dataset]
+            
+            # Handle different label formats
+            if task == "classification_multiclass":
+                # For multiclass classification with single integer labels
+                if all(isinstance(label, (int, float)) for label in all_labels):
+                    targets = torch.stack(all_labels).long()
+                # For multiclass classification with one-hot encoded labels
+                elif all(isinstance(label, torch.Tensor) and label.dim() == 1 for label in all_labels):
+                    targets = torch.stack(all_labels).argmax(dim=1)
+                else:
+                    raise ValueError("Unsupported label format for multiclass classification")
+            elif task == "classification_multilabel":
+                # For multilabel classification, WeightedRandomSampler isn't directly applicable
+                # You might need a different approach here
+                raise NotImplementedError("WeightedRandomSampler not implemented for multilabel classification")
+            else:
+                raise ValueError(f"Unknown task type: {task}")
+            
+            class_weights = torch.tensor(class_weights, dtype=torch.float)
+            sample_weights = class_weights[targets]
+            sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
+
         self.training_dataloader = DataLoader(
             training_dataset,
             batch_size=batch_size,
-            shuffle=True
+            shuffle=False,  
+            sampler=sampler
         )
         self.validation_dataloader = DataLoader(
             validation_dataset,

@@ -179,6 +179,7 @@ def main():
     )
 
     print("\nLoading the dataset. \n")
+
     transform = build_transform(image_dir=image_dir, label_path=label_path)
     galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=transform)
 
@@ -188,10 +189,15 @@ def main():
     preprocessor = GalaxyPreprocessor()
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
+    weights_binary = GalaxyWeightsClassification(galaxy_dataset)
+    weights = weights_binary.get_weights()
+
     split_dataloader = SplitGalaxyDataLoader(
         galaxy_preprocessed,
         config.validation_fraction,
         config.batch_size,
+        class_weights=weights,
+        task = config.network.task_type
     )
 
     print("Building the CNN. \n")
@@ -201,10 +207,8 @@ def main():
     )
 
     optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-3)
-
-    weights_binary = GalaxyWeightsClassification(galaxy_dataset)
-    weights = weights_binary.get_weights()
-    loss = get_loss(config=config, weight=weights * 0.1)
+    
+    loss = get_loss(config=config)
 
     print_divider()
     print("Training... \n")
@@ -216,6 +220,8 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
+        patience=5,
+        delta = 0.01
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")
