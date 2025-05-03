@@ -186,7 +186,8 @@ def main():
     galaxy_dataset = load_custom_image_dataset(galaxy_dataset, None, transform_1_3)
 
     print("Preprocessing the data. \n")
-    preprocessor = GalaxyPreprocessor()
+
+    preprocessor = GalaxyPreprocessor(dataset=galaxy_dataset, batch_size=config.batch_size, normalize=True)
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
     weights_binary = GalaxyWeightsClassification(galaxy_dataset)
@@ -200,7 +201,7 @@ def main():
         task = config.network.task_type
     )
 
-    print("Building the CNN. \n")
+    print("\n Building the CNN. \n")
     network = build_network(
         galaxy_preprocessed.image_shape(),
         config.network,

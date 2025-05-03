@@ -451,6 +451,7 @@ def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names
     else:    
         raise ValueError(f"Unsupported task type: {config.task_type}")
     
+    print("computing confusion matrix")
     cm = confusion_matrix(all_labels.numpy(), preds.numpy(), normalize="true")
 
     fig, ax = plt.subplots(figsize=(8, 6))

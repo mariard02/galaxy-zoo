@@ -8,13 +8,11 @@ import torch
 from torch.utils.data import DataLoader
 import yaml
 
-
 from galaxy_classification import *
 from galaxy_classification.data import *
 from galaxy_classification.networks import *
 
 import matplotlib.pyplot as plt
-
 
 # Define a dataclass to handle command-line input for evaluation run name.
 @dataclass
@@ -88,10 +86,11 @@ def main():
 
     # Preprocess dataset using the defined transformations
     print("preprocessing the dataset")
-    preprocessor = GalaxyPreprocessor()
+    
     transform = build_transform(image_dir=image_dir, label_path=label_path)
     galaxy_dataset = load_image_dataset(image_dir, label_path, task=config.task_type, transform=transform)
     galaxy_dataset = load_custom_image_dataset(galaxy_dataset, None, transform_1_3)
+    preprocessor = GalaxyPreprocessor(dataset=galaxy_dataset, batch_size=config.batch_size, normalize=True)
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
     # Create a DataLoader for batching and shuffling

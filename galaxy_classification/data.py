@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset, random_split, WeightedRandomSa
 from torchvision import transforms
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 from PIL import Image
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -228,46 +229,83 @@ def load_custom_image_dataset(dataset: GalaxyDataset, transform=None, transform2
     """
     return CustomAugmentedDataset(dataset=dataset, transform_normal=transform, transform_1_3=transform2)
 
-
-# TO DO: PREPARE THE PREPROCESSING 
 class GalaxyPreprocessor:
     """
-    A class to apply and undo preprocessing transformations on Galaxy datasets,
-    such as scaling image pixel values.
+    Class to apply and undo preprocessing transformations on Galaxy datasets,
+    including scaling and normalization.
     """
-    def __init__(self, scale_factor=1.):
+    def __init__(self, dataset, scale_factor=1., mean=None, std=None, batch_size=64, normalize=False):
         """
-        Initializes the preprocessor with a scale factor.
-
-        Parameters:
-        -----------
-        scale_factor : float
-            Factor by which to divide image tensors. Default is 1 (no scaling).
-        """
-        self.scale_factor = scale_factor
-
-    def apply_preprocessing(self, dataset):
-        """
-        Applies preprocessing (e.g. scaling) to the dataset images.
+        Initializes the preprocessor with a scale factor and optional normalization.
+        If mean and std are not provided, they will be computed from the dataset.
 
         Parameters:
         -----------
         dataset : GalaxyDataset or CustomAugmentedDataset
-            The dataset to preprocess.
+            Dataset to use for computing statistics if needed.
+        scale_factor : float
+            Factor by which to divide image tensors. Default is 1 (no scaling).
+        mean : list or None
+            Channel-wise means. If None, they will be computed.
+        std : list or None
+            Channel-wise stds. If None, they will be computed.
+        batch_size : int
+            Batch size for computing dataset statistics.
+        """
+        self.scale_factor = scale_factor
+        self.mean = mean
+        self.std = std
+        self.normalize = normalize
 
-        Returns:
-        --------
-        GalaxyDataset or CustomAugmentedDataset
-            A new dataset with the preprocessing applied.
+        if self.mean is None or self.std is None:
+            self.mean, self.std = self.compute_mean_std(dataset, batch_size=batch_size)
+
+    def compute_mean_std(self, dataset, batch_size=64):
+        """
+        Computes per-channel mean and std for a dataset.
+        """
+        # Use a basic transform to ensure tensors are produced
+        def to_tensor(img):
+            return transforms.ToTensor()(img) / self.scale_factor
+
+        base_dataset = dataset.dataset if isinstance(dataset, CustomAugmentedDataset) else dataset
+        temp_dataset = GalaxyDataset(
+            file_list=base_dataset.file_list,
+            labels_df=base_dataset.labels_df,
+            transform=to_tensor
+        )
+
+        loader = DataLoader(temp_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+        n_pixels = 0
+        sum_ = torch.zeros(3)
+        sum_sq = torch.zeros(3)
+
+        for imgs, _ in tqdm(loader):
+            # imgs shape: (B, C, H, W)
+            n = imgs.size(0)
+            imgs = imgs.view(n, 3, -1)  # Flatten H*W
+            sum_ += imgs.sum(dim=(0, 2))
+            sum_sq += (imgs ** 2).sum(dim=(0, 2))
+            n_pixels += imgs.shape[0] * imgs.shape[2]
+
+        mean = sum_ / n_pixels
+        std = (sum_sq / n_pixels - mean ** 2).sqrt()
+        return mean.tolist(), std.tolist()
+
+    def apply_preprocessing(self, dataset):
+        """
+        Applies scaling and normalization to the dataset images.
         """
         def new_transform(img):
-            # Convert to tensor if not already and apply scaling
             if not isinstance(img, torch.Tensor):
                 img = transforms.ToTensor()(img)
-            return img / self.scale_factor
+                if self.normalize:
+                    img = img / self.scale_factor
+                    img = transforms.Normalize(self.mean, self.std)(img)
+            return img
 
         if isinstance(dataset, CustomAugmentedDataset):
-            # Wrap original inner dataset with the new transform
             return CustomAugmentedDataset(
                 dataset=dataset.dataset,
                 transform_normal=new_transform,
@@ -282,28 +320,21 @@ class GalaxyPreprocessor:
 
     def undo_preprocessing(self, dataset) -> Dataset:
         """
-        Reverts the preprocessing applied to a dataset.
-
-        Parameters:
-        -----------
-        dataset : GalaxyDataset or CustomAugmentedDataset
-            The dataset to revert preprocessing on.
-
-        Returns:
-        --------
-        GalaxyDataset or CustomAugmentedDataset
-            A dataset with the inverse preprocessing applied.
+        Reverts scaling and normalization.
         """
-        # Get the base dataset (in case it's wrapped in CustomAugmentedDataset)
         base_dataset = dataset.dataset if isinstance(dataset, CustomAugmentedDataset) else dataset
 
         def new_transform(img):
-            # Reapply original transform before undoing scaling
             if isinstance(dataset, CustomAugmentedDataset):
                 img = dataset.transform_normal(img)
             elif hasattr(dataset, 'transform') and dataset.transform:
                 img = dataset.transform(img)
-            return img * self.scale_factor
+
+            mean = torch.tensor(self.mean).view(-1, 1, 1)
+            std = torch.tensor(self.std).view(-1, 1, 1)
+            img = img * std + mean
+            img = img * self.scale_factor
+            return img
 
         if isinstance(dataset, CustomAugmentedDataset):
             return CustomAugmentedDataset(
@@ -366,7 +397,7 @@ class SplitGalaxyDataLoader:
             else:
                 raise ValueError(f"Unknown task type: {task}")
             
-            class_weights = torch.tensor(class_weights, dtype=torch.float)
+            class_weights = class_weights.clone().detach().float()
             sample_weights = class_weights[targets]
             sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
