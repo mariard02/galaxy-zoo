@@ -103,26 +103,29 @@ def prepare_config(output_path: Path, default_path: Path, run_name: str, allow_c
 # === Data Transformations ===
 
 def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
-    """
-    Build transform pipeline for dataset preprocessing.
-
-    Includes resizing, cropping, flips, conversion to tensor, and normalization.
-
-    Args:
-        image_dir (Path): Path to image data.
-        label_path (Path): Path to label CSV.
-
-    Returns:
-        torch.nn.Module: Composed transform pipeline.
-    """
+    # First load dataset without normalization to calculate stats
+    temp_dataset = load_image_dataset(
+        image_dir, 
+        label_path,
+        transform=transforms.Compose([
+            transforms.Resize((424, 424)),
+            transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
+            transforms.ToTensor()
+        ])
+    )
+    
+    # Calculate normalization stats
+    normalizer = AutoNormalizeTransform(temp_dataset)
+    
+    # Final transform with augmentation
     return transforms.Compose([
         transforms.Resize((424, 424)),
         transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
-        transforms.RandomRotation(60),
+        transforms.RandomRotation(30),
         transforms.ToTensor(),
-        AutoNormalizeTransform(image_dir, label_path),
+        normalizer  
     ])
 
 # Additional transformation for data augmentation
@@ -180,14 +183,18 @@ def main():
 
     print("\nLoading the dataset. \n")
 
-    transform = build_transform(image_dir=image_dir, label_path=label_path)
-    galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=transform)
-
-    galaxy_dataset = load_custom_image_dataset(galaxy_dataset, None, transform_1_3)
+    galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=None)
 
     print("Preprocessing the data. \n")
 
-    preprocessor = GalaxyPreprocessor(dataset=galaxy_dataset, batch_size=config.batch_size, normalize=False)
+    preprocessor = GalaxyPreprocessor(
+    image_dir=image_dir,
+    label_path=label_path,
+    scale_factor=1.0,
+    batch_size=config.batch_size,
+    normalize=True
+    )
+
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
     if config.network.task_type == "classification_multiclass":

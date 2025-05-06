@@ -9,9 +9,9 @@ training:
     channel_count_hidden: 16
     convolution_kernel_size: 5
     mlp_hidden_unit_count: 128
-    output_units: 5
+    output_units: 14
     task_type: regression
 
 evaluation:
   batch_size: 1024
-  task_type: classification_multiclass
+  task_type: regression
