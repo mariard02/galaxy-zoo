@@ -29,10 +29,10 @@ question1 = labels_df[labels_df[["Class1.1", "Class1.2", "Class1.3"]].max(axis=1
 question1 = (question1.eq(question1.max(axis=1), axis=0)).astype(int)
 
 # TASK 2: Regression. Could this be a disk? How round is the smooth galaxy?
-question2 = labels_df[ ["Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3"]]
+question2 = labels_df[ ["Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3"]][:3000]
 
 # TASK 3: Regression. Is there anything odd about the galaxy? What is the odd feature?
-question3 = labels_df[ ["Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3", "Class6.1", "Class6.2", "Class8.1", "Class8.2", "Class8.3", "Class8.4", "Class8.5", "Class8.6", "Class8.7"]]
+question3 = labels_df[ ["Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3", "Class6.1", "Class6.2", "Class8.1", "Class8.2", "Class8.3", "Class8.4", "Class8.5", "Class8.6", "Class8.7"]][:3000]
 
 # TASK 4: informed regression
 question4 = labels_df[labels_df[["Class1.1", "Class1.2", "Class1.3"]].max(axis=1) > 0.8][["Class1.1", "Class1.2", "Class1.3"]].copy()

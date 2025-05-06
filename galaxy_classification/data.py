@@ -377,6 +377,8 @@ class SplitGalaxyDataLoader:
             generator=Generator().manual_seed(random_seed)
         )
 
+        sampler = None
+
         if class_weights is not None:
             all_labels = [sample[1] for sample in training_dataset]
             

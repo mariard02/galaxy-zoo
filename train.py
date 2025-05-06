@@ -165,7 +165,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_1/labels.csv")
+    label_path = Path("data/exercise_3/labels.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
@@ -187,19 +187,28 @@ def main():
 
     print("Preprocessing the data. \n")
 
-    preprocessor = GalaxyPreprocessor(dataset=galaxy_dataset, batch_size=config.batch_size, normalize=True)
+    preprocessor = GalaxyPreprocessor(dataset=galaxy_dataset, batch_size=config.batch_size, normalize=False)
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
 
-    weights_binary = GalaxyWeightsClassification(galaxy_dataset)
-    weights = weights_binary.get_weights()
+    if config.network.task_type == "classification_multiclass":
+        weights_binary = GalaxyWeightsClassification(galaxy_dataset)
+        weights = weights_binary.get_weights()
 
-    split_dataloader = SplitGalaxyDataLoader(
-        galaxy_preprocessed,
-        config.validation_fraction,
-        config.batch_size,
-        class_weights=weights,
-        task = config.network.task_type
-    )
+        split_dataloader = SplitGalaxyDataLoader(
+            galaxy_preprocessed,
+            config.validation_fraction,
+            config.batch_size,
+            class_weights=weights,
+            task = config.network.task_type
+        )
+    else:
+        split_dataloader = SplitGalaxyDataLoader(
+            galaxy_preprocessed,
+            config.validation_fraction,
+            config.batch_size,
+            class_weights=None,
+            task = config.network.task_type
+        )
 
     print("\n Building the CNN. \n")
     network = build_network(
@@ -222,7 +231,7 @@ def main():
         split_dataloader.validation_dataloader,
         config.epoch_count,
         patience=5,
-        delta = 0.01
+        delta = 0.001
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")

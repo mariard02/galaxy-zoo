@@ -167,7 +167,6 @@ class GalaxyCNNMLP(Module):
             self.classification_layer = Linear(output_units, 3) # Output of the classification layer: 3 possible classes
             self.regression_layer = Linear(3 + output_units, output_units) # Regression layer: stack classification and mlp
 
-        # No activation function here; it's handled by the loss function
         self.output_units = output_units
 
     def forward(self, x: Tensor) -> Tensor:

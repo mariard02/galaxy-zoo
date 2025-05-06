@@ -32,9 +32,11 @@ def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_l
 
         # Create strings for training and validation metrics without changing background colors
         training_loss_str = f"Training Loss: {training_loss:.2e}"
-        training_accuracy_str = f"Training Accuracy: {training_accuracy * 100.0:.2f}%"
+        if training_accuracy is not None:
+            training_accuracy_str = f"Training Accuracy: {training_accuracy * 100.0:.2f}%"
         validation_loss_str = f"Validation Loss: {validation_loss:.2e}"
-        validation_accuracy_str = f"Validation Accuracy: {validation_accuracy * 100.0:.2f}%"
+        if validation_accuracy is not None:
+            validation_accuracy_str = f"Validation Accuracy: {validation_accuracy * 100.0:.2f}%"
 
         # Print with a box around the epoch
         print(f"{cf.bold}{cf.purple}{'=' * (len(epoch_str) + 4)}{cf.reset}")
@@ -43,9 +45,11 @@ def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_l
 
         # Print the rest of the metrics
         print(f"{training_loss_str}")
-        print(f"{training_accuracy_str}")
+        if training_accuracy is not None:
+            print(f"{training_accuracy_str}")
         print(f"{validation_loss_str}")
-        print(f"{validation_accuracy_str}")
+        if validation_accuracy is not None:
+            print(f"{validation_accuracy_str}")
         print("\n")
 
 class TrainingSummary:
@@ -104,14 +108,16 @@ class TrainingSummary:
     def save_plot(self, path: Path):
         """
         Saves a plot with two subplots: one for losses and one for accuracies over epochs.
+        If accuracies are None, only the losses plot is shown.
 
         Args:
             path (Path): The path to save the plot to.
         """
         epoch_numbers = list(range(self.epoch_index))
 
-        fig, (ax_loss, ax_acc) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
-        
+        # Check if accuracies are all None
+        accuracies_none = all(acc is None for acc in self.training_accuracies + self.validation_accuracies)
+
         plt.rcParams.update({
             "text.usetex": True,
             "font.family": "serif",
@@ -119,22 +125,39 @@ class TrainingSummary:
             "axes.unicode_minus": False,
             "text.latex.preamble": r"\usepackage{lmodern}"
         })
-       
-        ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
-        ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
-        ax_loss.set_ylabel(r"$\mathrm{Loss}$")
-        ax_loss.legend()
-        ax_loss.grid(True)
 
-        ax_acc.plot(epoch_numbers, self.training_accuracies, label="Training Accuracy", color="C0")
-        ax_acc.plot(epoch_numbers, self.validation_accuracies, label="Validation Accuracy", color="C1")
-        ax_acc.set_xlabel(r"$\mathrm{Epoch}$")
-        ax_acc.set_ylabel(r"$\mathrm{Accuracy}$")
-        ax_acc.legend()
-        ax_acc.grid(True)
+        if accuracies_none:
+            # Only plot losses
+            fig, ax_loss = plt.subplots(figsize=(8, 4))
+            
+            ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
+            ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
+            ax_loss.set_xlabel(r"$\mathrm{Epoch}$")
+            ax_loss.set_ylabel(r"$\mathrm{Loss}$")
+            ax_loss.legend()
+            ax_loss.grid(True)
 
-        fig.suptitle("Training and Validation Metrics", fontsize=14)
-        fig.tight_layout(rect=[0, 0, 1, 0.95])
+            fig.suptitle("Training and Validation Loss", fontsize=14)
+            fig.tight_layout(rect=[0, 0, 1, 0.95])
+        else:
+            # Plot both losses and accuracies
+            fig, (ax_loss, ax_acc) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+            
+            ax_loss.plot(epoch_numbers, self.training_losses, label="Training Loss", color="C0")
+            ax_loss.plot(epoch_numbers, self.validation_losses, label="Validation Loss", color="C1")
+            ax_loss.set_ylabel(r"$\mathrm{Loss}$")
+            ax_loss.legend()
+            ax_loss.grid(True)
+
+            ax_acc.plot(epoch_numbers, self.training_accuracies, label="Training Accuracy", color="C0")
+            ax_acc.plot(epoch_numbers, self.validation_accuracies, label="Validation Accuracy", color="C1")
+            ax_acc.set_xlabel(r"$\mathrm{Epoch}$")
+            ax_acc.set_ylabel(r"$\mathrm{Accuracy}$")
+            ax_acc.legend()
+            ax_acc.grid(True)
+
+            fig.suptitle("Training and Validation Metrics", fontsize=14)
+            fig.tight_layout(rect=[0, 0, 1, 0.95])
 
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
@@ -248,11 +271,6 @@ def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> f
             correct_prediction_count += (labels_predicted == labels).sum().item()
             prediction_count += len(images) 
 
-        elif task_type == "regression":
-            # For regression tasks, no argmax, instead use Mean Squared Error or another regression metric
-            regression_loss += torch.mean((labels_predicted - labels) ** 2).item()
-            prediction_count += len(images)
-        
         elif task_type == "informed_regression":
             # For informed regression, you get both regression and classification outputs
             output_regression, logits_classification = labels_predicted
@@ -275,8 +293,11 @@ def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> f
             prediction_count += len(images)
 
     # For regression, return the average loss
-    if task_type in ["regression", "informed_regression"]:
+    if task_type == "informed_regression":
         return regression_loss / prediction_count
+    
+    if task_type == "regression":
+        return None
     
     # For classification, return the accuracy
     return correct_prediction_count / prediction_count
@@ -330,8 +351,8 @@ def fit(
 
         # Metrics depending on the task
         if task_type == "regression":
-            epoch_metric_training = compute_mse(network, training_dataloader)
-            epoch_metric_validation = compute_mse(network, validation_dataloader)
+            epoch_metric_training = None
+            epoch_metric_validation = None
         else:
             epoch_metric_training = compute_accuracy(network, training_dataloader, task_type)
             epoch_metric_validation = compute_accuracy(network, validation_dataloader, task_type)
@@ -344,15 +365,20 @@ def fit(
             epoch_metric_validation,
         )
 
-        # --- EARLY STOPPING CHECK ---
-        if best_validation_loss is None or (epoch_loss_validation < best_validation_loss + delta):
+        if best_validation_loss is None:
             best_validation_loss = epoch_loss_validation
             epochs_without_improvement = 0
         else:
-            epochs_without_improvement += 1
-            if patience is not None and epochs_without_improvement >= patience:
-                print((f"\nEarly stopping triggered at epoch {epoch + 1}."))
-                break
+            if epoch_loss_validation < best_validation_loss - delta:
+                # Improvement: update best loss and reset counter
+                best_validation_loss = epoch_loss_validation
+                epochs_without_improvement = 0
+            else:
+                # No improvement: increment counter
+                epochs_without_improvement += 1
+                if patience is not None and epochs_without_improvement >= patience:
+                    print(f"\nEarly stopping triggered at epoch {epoch + 1}.")
+                    break
 
     return summary
 

@@ -1,5 +1,5 @@
 training:
-  epoch_count: 50
+  epoch_count: 5
   batch_size: 32
   learning_rate: 1.e-4
 
@@ -9,8 +9,8 @@ training:
     channel_count_hidden: 16
     convolution_kernel_size: 5
     mlp_hidden_unit_count: 128
-    output_units: 3
-    task_type: classification_multiclass
+    output_units: 5
+    task_type: regression
 
 evaluation:
   batch_size: 1024
