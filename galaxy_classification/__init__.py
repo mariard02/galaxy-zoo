@@ -7,6 +7,8 @@ from torch.nn import Module, CrossEntropyLoss, MSELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
+import numpy as np
+from galaxy_classification.networks import WeightedMSELoss, HierarchicalFocalLoss
 from sklearn.metrics import RocCurveDisplay, confusion_matrix, ConfusionMatrixDisplay
 
 # Set the color scheme for the console output
@@ -199,6 +201,17 @@ def compute_average_epoch_loss(
             labels_predicted = model(images)
             # Forward pass
             loss_batch = loss(labels_predicted, labels)
+        elif isinstance(loss, HierarchicalFocalLoss):
+            labels = labels.float()
+            labels_predicted = model(images)
+            # Forward pass
+            loss_batch = loss(labels_predicted, labels)
+        elif isinstance(loss, WeightedMSELoss):
+            labels = labels.float()
+            labels_predicted = model(images)
+            # Forward pass
+            loss_batch = loss(labels_predicted, labels)
+
         else:
             # This is the case of informed regression
             target_classification = labels[:, :3].argmax(dim=1).long()
@@ -497,3 +510,56 @@ def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
 
+def plot_feature_histograms(properties_predicted, properties_true, xrange: tuple[float, float], path: Path, bins: int = 50, title: str = '', last_n_features: int | None = None, **kwargs):
+    # Convertir tensores a numpy arrays si es necesario
+    if hasattr(properties_predicted, 'numpy'):
+        properties_predicted = properties_predicted.detach().numpy()
+    if hasattr(properties_true, 'numpy'):
+        properties_true = properties_true.detach().cpu().numpy()
+
+    if properties_predicted.ndim == 1:
+        properties_predicted = properties_predicted.reshape(-1, 1)
+    if properties_true.ndim == 1:
+        properties_true = properties_true.reshape(-1, 1)
+
+    # Seleccionar solo las últimas N features si se especifica
+    if last_n_features is not None:
+        properties_predicted = properties_predicted[:, -last_n_features:]
+        properties_true = properties_true[:, -last_n_features:]
+
+    n_features = properties_predicted.shape[1]
+    n_cols = min(n_features, 3)
+    n_rows = (n_features - 1) // 3 + 1
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_features * 3 + 5, 3.5 * n_rows))
+
+    if isinstance(axes, np.ndarray):
+        axes = axes.flatten()
+    else:
+        axes = [axes]
+
+    plt.suptitle("Feature value distribution" + (f" ({title})" if title else ""))
+    plt.subplots_adjust(wspace=0.5)
+
+    for i, axis in enumerate(axes):
+        if i >= n_features:
+            axis.axis('off')
+            continue
+
+        axis.hist(properties_predicted[:, i], histtype="step", bins=bins, range=xrange,
+                  label='Predicted' if i == 0 else "", **kwargs)
+        axis.hist(properties_true[:, i], histtype="step", bins=bins, range=xrange,
+                  label='True' if i == 0 else "", linestyle='--', **kwargs)
+
+        axis.set_xlabel(f'Feature {-last_n_features + i + 1 if last_n_features else i + 1}')
+        axis.set_ylabel('Frequency')
+
+        if i == 0:
+            axis.legend()
+
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+
+    fig.tight_layout()
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)

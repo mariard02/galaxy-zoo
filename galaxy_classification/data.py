@@ -73,7 +73,6 @@ class GalaxyDataset(Dataset):
             label_tensor = torch.tensor(label.values, dtype=torch.long)
         else:
             label_tensor = torch.tensor(label.values, dtype=torch.float32)
-
         return image, label_tensor
 
     def __len__(self):
@@ -238,7 +237,7 @@ class GalaxyPreprocessor:
     Enhanced preprocessor class that matches build_transform functionality while maintaining
     additional preprocessing capabilities.
     """
-    def __init__(self, image_dir: Path, label_path: Path, scale_factor=1., batch_size=64, normalize=True):
+    def __init__(self, image_dir: Path, label_path: Path, scale_factor=1., batch_size=64, normalize=True, preprocess_probabilities = False, columns = None, n = 1):
         """
         Initializes the preprocessor with automatic stats computation from the dataset.
         
@@ -254,9 +253,18 @@ class GalaxyPreprocessor:
             Batch size for computing dataset statistics.
         normalize : bool
             Whether to apply normalization
+        preprocess_probabilities: bool
+            Whether to preprocess probabilities
+        columns: list
+            List of columns to preprocess
+        n : float
+            Exponent for the preprocessing of the probabilities
         """
         self.scale_factor = scale_factor
         self.normalize = normalize
+        self.probabilities = preprocess_probabilities
+        self.columns = columns
+        self.n = n
         
         # Calculate base transform for statistics computation
         base_transform = transforms.Compose([
@@ -295,7 +303,6 @@ class GalaxyPreprocessor:
         return mean.tolist(), std.tolist()
 
     def build_complete_transform(self):
-        """Builds the complete transform pipeline matching build_transform()"""
         transform_list = [
             transforms.Resize((424, 424)),
             transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
@@ -315,26 +322,38 @@ class GalaxyPreprocessor:
     def apply_preprocessing(self, dataset):
         """
         Applies the complete preprocessing pipeline to a dataset.
-        Matches the functionality of build_transform().
+        Includes optional preprocessing of probabilities.
         """
-        if isinstance(dataset, CustomAugmentedDataset):
-            return CustomAugmentedDataset(
-                dataset=dataset.dataset,
-                transform_normal=self.transform,
-                transform_1_3=dataset.transform_1_3
-            )
-        else:
-            return GalaxyDataset(
-                file_list=dataset.file_list,
-                labels_df=dataset.labels_df,
-                transform=self.transform
-            )
+        labels_df = dataset.labels_df.copy()
+
+        if self.probabilities and self.columns is not None:
+            for column in self.columns:
+                if column in labels_df.columns:
+                    labels_df[column] = labels_df[column] ** (1 / self.n)
+                else:
+                    raise ValueError(f"Column '{column}' not found in labels DataFrame.")
+
+        return GalaxyDataset(
+            file_list=dataset.file_list,
+            labels_df=labels_df,
+            transform=self.transform
+        )
 
     def undo_preprocessing(self, dataset) -> Dataset:
         """
-        Reverts scaling and normalization (keeps other transformations).
+        Reverts scaling, normalization and probability preprocessing.
+        Keeps other image transformations.
         """
         base_dataset = dataset.dataset if isinstance(dataset, CustomAugmentedDataset) else dataset
+        labels_df = base_dataset.labels_df.copy()
+
+        # Invert probability preprocessing if it was applied
+        if self.probabilities and self.columns is not None:
+            for column in self.columns:
+                if column in labels_df.columns:
+                    labels_df[column] = labels_df[column] ** self.n
+                else:
+                    raise ValueError(f"Column '{column}' not found in labels DataFrame.")
 
         def inverse_transform(img):
             if isinstance(dataset, CustomAugmentedDataset):
@@ -346,22 +365,16 @@ class GalaxyPreprocessor:
                 mean = torch.tensor(self.mean).view(-1, 1, 1)
                 std = torch.tensor(self.std).view(-1, 1, 1)
                 img = img * std + mean
-            
+
             img = img * self.scale_factor
             return img
 
-        if isinstance(dataset, CustomAugmentedDataset):
-            return CustomAugmentedDataset(
-                dataset=dataset.dataset,
-                transform_normal=inverse_transform,
-                transform_1_3=dataset.transform_1_3
-            )
-        else:
-            return GalaxyDataset(
-                file_list=base_dataset.file_list,
-                labels_df=base_dataset.labels_df,
-                transform=inverse_transform
-            )
+        return GalaxyDataset(
+            file_list=base_dataset.file_list,
+            labels_df=labels_df,
+            transform=inverse_transform
+        )
+
 
 
 @dataclass

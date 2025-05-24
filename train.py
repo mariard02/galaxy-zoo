@@ -7,6 +7,7 @@ import simple_parsing  # Lightweight CLI parser for dataclasses
 import torch  # Core PyTorch library
 import yaml  # YAML parsing
 import colorful as cf  # For colored terminal output
+import pandas as pd
 
 # Standard library tools for structure and typing
 from dataclasses import asdict, dataclass
@@ -99,43 +100,6 @@ def prepare_config(output_path: Path, default_path: Path, run_name: str, allow_c
 
     return load_config(output_path)
 
-
-# === Data Transformations ===
-
-def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
-    # First load dataset without normalization to calculate stats
-    temp_dataset = load_image_dataset(
-        image_dir, 
-        label_path,
-        transform=transforms.Compose([
-            transforms.Resize((424, 424)),
-            transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
-            transforms.ToTensor()
-        ])
-    )
-    
-    # Calculate normalization stats
-    normalizer = AutoNormalizeTransform(temp_dataset)
-    
-    # Final transform with augmentation
-    return transforms.Compose([
-        transforms.Resize((424, 424)),
-        transforms.Lambda(lambda x: transforms.functional.crop(x, 180, 180, 64, 64)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        transforms.RandomRotation(30),
-        transforms.ToTensor(),
-        normalizer  
-    ])
-
-# Additional transformation for data augmentation
-transform_1_3 = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomRotation(60),
-])
-
-
 # === Hyperparameter Saving ===
 
 def save_hyperparameters(path: Path, config: NetworkConfig):
@@ -149,6 +113,22 @@ def save_hyperparameters(path: Path, config: NetworkConfig):
     with open(path, "w") as hyperparameter_cache:
         yaml.dump(asdict(config), hyperparameter_cache)
 
+def get_class8_weights(label_path: Path) -> torch.Tensor:
+    """
+    Calcula pesos inversos normalizados para las últimas 14 columnas del CSV.
+
+    Args:
+        label_path (Path): Ruta al archivo CSV.
+
+    Returns:
+        torch.Tensor: Vector de pesos normalizados.
+    """
+    df = pd.read_csv(label_path)
+    label_cols = df.columns[-14:]  # Toma las últimas 14 columnas
+    means = df[label_cols].mean().values
+    weights = 1.0 / (means + 1e-6)  # Evita división por cero
+    weights = weights / weights.sum()
+    return torch.tensor(weights, dtype=torch.float32)
 
 # === Main Training Logic ===
 
@@ -168,7 +148,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_3/labels.csv")
+    label_path = Path("data/exercise_3/train.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
@@ -184,6 +164,10 @@ def main():
     print("\nLoading the dataset. \n")
 
     galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=None)
+    columns = pd.read_csv(label_path, nrows=0).columns.tolist()
+    columns.remove("Class2.2")
+    #columns.remove("Class6.2")
+    columns.remove("GalaxyID")
 
     print("Preprocessing the data. \n")
 
@@ -192,7 +176,10 @@ def main():
     label_path=label_path,
     scale_factor=1.0,
     batch_size=config.batch_size,
-    normalize=True
+    normalize=True,
+    preprocess_probabilities=False,
+    columns=columns,
+    n = 3
     )
 
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
@@ -218,14 +205,37 @@ def main():
         )
 
     print("\n Building the CNN. \n")
+
+    #hierarchy_config = {
+        #'class1': (None, 2),       # 2 subclases, ninguna padre
+        #'class2': ('class1.2', 2), # 2 subclases, hijas de class1.1
+        #'class7': ('class1.1', 3)  # 3 subclases, hijas de class1.2
+    #}
+
+    hierarchy_config = {
+        'class1': (None, 2),  # Class1.1, Class1.2
+        
+        'class2': ('class1.2', 2),  # Class2.1, Class2.2
+        
+        'class7': ('class1.1', 3),  # Class7.1, Class7.2, Class7.3
+        
+        'class6': (None, 2),  # Class6.1, Class6.2
+        
+        'class8': ('class6.1', 7)  # Class8.1 a Class8.7
+    }
+
     network = build_network(
         galaxy_preprocessed.image_shape(),
         config.network,
+        hierarchy_config
     )
 
-    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-3)
+    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-5)
     
-    loss = get_loss(config=config)
+    weights = get_class8_weights(label_path)
+    #loss = WeightedMSELoss(weights=weights)
+    #loss = get_loss(config=config)
+    loss = HierarchicalFocalLoss(hierarchy_config)
 
     print_divider()
     print("Training... \n")
@@ -237,8 +247,8 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
-        patience=5,
-        delta = 0.001
+        patience=20,
+        delta = 0.0000001
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")

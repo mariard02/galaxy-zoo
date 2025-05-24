@@ -69,14 +69,15 @@ def main():
     config = load_config(Path(f"outputs/{cli.run_name}/config.yaml"))
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_3/labels.csv")
-
-    print("loading the dataset")
-    print("preprocessing the dataset")
+    label_path = Path("data/exercise_2/test.csv")
 
     print("\nLoading the dataset. \n")
 
     galaxy_dataset = load_image_dataset(image_dir, label_path, None, transform=None)
+    columns = pd.read_csv(label_path, nrows=0).columns.tolist()
+    columns.remove("Class2.2")
+    #columns.remove("Class6.2")
+    columns.remove("GalaxyID")
 
     print("Preprocessing the data. \n")
 
@@ -85,7 +86,10 @@ def main():
     label_path=label_path,
     scale_factor=1.0,
     batch_size=config.batch_size,
-    normalize=True
+    normalize=True,
+    preprocess_probabilities=False,
+    columns=columns,
+    n = 10
     )
 
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
@@ -93,7 +97,6 @@ def main():
     dataloader = DataLoader(
         galaxy_preprocessed, batch_size=config.batch_size, shuffle=False
     )
-
 
     network_config = load_hyperparameters(
         Path(f"outputs/{cli.run_name}/classifier/hyperparameters.yaml")
@@ -103,7 +106,6 @@ def main():
     # Verify this matches the architecture used during training
     network.load_state_dict(
         torch.load(f"outputs/{cli.run_name}/classifier/parameters.pth"),
-        strict=False  # Try this only if you're sure about the mismatch
     )   
     network.eval()
 
@@ -128,11 +130,23 @@ def main():
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
 
+    if config.task_type == "regression" and preprocessor.probabilities:
+        if all_preds.ndim == 1:
+            all_preds = all_preds.unsqueeze(1)
+            all_labels = all_labels.unsqueeze(1)
+
+        for col_idx, col_name in enumerate(galaxy_preprocessed.labels_df.columns):
+            if col_name in preprocessor.columns:
+                all_preds[:, col_idx] = all_preds[:, col_idx] ** preprocessor.n
+                all_labels[:, col_idx] = all_labels[:, col_idx] ** preprocessor.n
+
     # Task-specific evaluation
     if config.task_type == "regression":
+
         # Compute regression metrics
         metrics = compute_regression_metrics(all_labels, all_preds)
-        print(f"Regression Metrics:")
+        plot_feature_histograms(all_preds, all_labels, [0., 1.], Path(f"outputs/{cli.run_name}/plots/histograms.pdf"), last_n_features=9)
+        print("Regression Metrics:")
         print(f"MSE: {metrics['mse']:.4f}")
         
     else:  # Classification tasks
@@ -145,7 +159,7 @@ def main():
             if all_labels.ndim > 1:
                 all_labels = torch.argmax(all_labels, dim=1)
             
-            class_names = ["Smooth", "Disk", "Other"]
+            class_names = ["Smooth", "Disk"]
             
             # Plot ROC curves and confusion matrix
             plot_roc_curves(
