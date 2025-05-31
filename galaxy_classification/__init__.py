@@ -8,7 +8,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
 import numpy as np
-from galaxy_classification.networks import WeightedMSELoss, HierarchicalFocalLoss
+from galaxy_classification.networks import HierarchicalFocalLoss
 from sklearn.metrics import RocCurveDisplay, confusion_matrix, ConfusionMatrixDisplay
 
 # Set the color scheme for the console output
@@ -206,22 +206,8 @@ def compute_average_epoch_loss(
             labels_predicted = model(images)
             # Forward pass
             loss_batch = loss(labels_predicted, labels)
-        elif isinstance(loss, WeightedMSELoss):
-            labels = labels.float()
-            labels_predicted = model(images)
-            # Forward pass
-            loss_batch = loss(labels_predicted, labels)
-
-        else:
-            # This is the case of informed regression
-            target_classification = labels[:, :3].argmax(dim=1).long()
-            target_regression = labels[:, 3:].float()
-
-            labels_predicted_regression, labels_predicted_classification = model(images)
-
-            # Forward pass
-            loss_batch = loss(labels_predicted_classification, labels_predicted_regression, target_classification, target_regression)
-
+        else: 
+            raise TypeError("Loss funtion not supported")
 
         # Backward pass and optimization if an optimizer is provided
         if optimizer is not None:
@@ -283,27 +269,6 @@ def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> f
             
             correct_prediction_count += (labels_predicted == labels).sum().item()
             prediction_count += len(images) 
-
-        elif task_type == "informed_regression":
-            # For informed regression, you get both regression and classification outputs
-            output_regression, logits_classification = labels_predicted
-            
-            # For classification part (assuming softmax or similar output)
-            labels_classification = labels[:, :3]  # Assuming the first 3 columns are for classification
-            
-            # Convert one-hot labels to class indices if necessary
-            if labels_classification.ndimension() > 1:
-                labels_classification = labels_classification.argmax(dim=1)
-
-            labels_classification_pred = logits_classification.argmax(dim=1)
-
-            correct_prediction_count += (labels_classification_pred == labels_classification).sum().item()
-
-            # For regression part, calculate the regression loss
-            labels_regression = labels[:, 3:]  # Assuming remaining part of labels is for regression
-            regression_loss += torch.mean((output_regression - labels_regression) ** 2).item()
-
-            prediction_count += len(images)
 
     # For regression, return the average loss
     if task_type == "informed_regression":

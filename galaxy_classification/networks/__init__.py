@@ -1,4 +1,4 @@
-from galaxy_classification.networks.cnn import GalaxyCNNMLP, GalaxyClassificationCNNConfig, LossFunction, WeightedMSELoss, HierarchicalFocalLoss
+from galaxy_classification.networks.cnn import GalaxyCNNMLP, GalaxyClassificationCNNConfig, LossFunction, HierarchicalFocalLoss
 from typing import Dict, Optional
 
 NetworkConfig = GalaxyClassificationCNNConfig

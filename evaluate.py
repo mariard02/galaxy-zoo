@@ -47,11 +47,19 @@ def build_transform(image_dir: Path, label_path: Path) -> torch.nn.Module:
         AutoNormalizeTransform(image_dir, label_path),
     ])
 
-transform_1_3 = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomRotation(60),
-])
+def load_hierarchy_config(path: Path) -> dict:
+    """
+    Load hierarchy configuration from YAML or JSON file.
+    
+    Args:
+        path (Path): Path to hierarchy config file.
+        
+    Returns:
+        dict: Parsed hierarchy configuration.
+    """
+    with open(path) as f:
+        config = yaml.safe_load(f)
+    return config["hierarchy"]
 
 def compute_regression_metrics(y_true: torch.Tensor, y_pred: torch.Tensor) -> dict:
     """Compute regression metrics (MSE, MAE, R²)"""
@@ -71,13 +79,18 @@ def main():
     image_dir = Path("data/images/images_training_rev1")
     label_path = Path("data/exercise_2/test.csv")
 
+    if config.network.task_type == "regression":
+        hierarchy_config = load_hierarchy_config(Path("data/exercise_2/hierarchy.yaml"))
+        hierarchy_config = {
+            class_name: (info["parent"], info["num_classes"])
+            for class_name, info in hierarchy_config.items()
+        }
+    else: 
+        hierarchy_config = None
+
     print("\nLoading the dataset. \n")
 
     galaxy_dataset = load_image_dataset(image_dir, label_path, None, transform=None)
-    columns = pd.read_csv(label_path, nrows=0).columns.tolist()
-    columns.remove("Class2.2")
-    #columns.remove("Class6.2")
-    columns.remove("GalaxyID")
 
     print("Preprocessing the data. \n")
 
@@ -87,9 +100,6 @@ def main():
     scale_factor=1.0,
     batch_size=config.batch_size,
     normalize=True,
-    preprocess_probabilities=False,
-    columns=columns,
-    n = 10
     )
 
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
@@ -98,10 +108,16 @@ def main():
         galaxy_preprocessed, batch_size=config.batch_size, shuffle=False
     )
 
+    hierarchy_config = {
+        'class1': (None, 3),      
+        'class2': ('class1.2', 2), 
+        'class7': ('class1.1', 3) 
+    }
+
     network_config = load_hyperparameters(
         Path(f"outputs/{cli.run_name}/classifier/hyperparameters.yaml")
     )# Before loading the model
-    network = build_network(galaxy_preprocessed.image_shape(), network_config)
+    network = build_network(galaxy_preprocessed.image_shape(), network_config, hierarchy_config=hierarchy_config)
 
     # Verify this matches the architecture used during training
     network.load_state_dict(
@@ -130,22 +146,12 @@ def main():
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
 
-    if config.task_type == "regression" and preprocessor.probabilities:
-        if all_preds.ndim == 1:
-            all_preds = all_preds.unsqueeze(1)
-            all_labels = all_labels.unsqueeze(1)
-
-        for col_idx, col_name in enumerate(galaxy_preprocessed.labels_df.columns):
-            if col_name in preprocessor.columns:
-                all_preds[:, col_idx] = all_preds[:, col_idx] ** preprocessor.n
-                all_labels[:, col_idx] = all_labels[:, col_idx] ** preprocessor.n
-
     # Task-specific evaluation
     if config.task_type == "regression":
 
         # Compute regression metrics
         metrics = compute_regression_metrics(all_labels, all_preds)
-        plot_feature_histograms(all_preds, all_labels, [0., 1.], Path(f"outputs/{cli.run_name}/plots/histograms.pdf"), last_n_features=9)
+        plot_feature_histograms(all_preds, all_labels, [0., 1.], Path(f"outputs/{cli.run_name}/plots/histograms.pdf"))
         print("Regression Metrics:")
         print(f"MSE: {metrics['mse']:.4f}")
         

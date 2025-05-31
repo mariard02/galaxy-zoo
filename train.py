@@ -113,22 +113,19 @@ def save_hyperparameters(path: Path, config: NetworkConfig):
     with open(path, "w") as hyperparameter_cache:
         yaml.dump(asdict(config), hyperparameter_cache)
 
-def get_class8_weights(label_path: Path) -> torch.Tensor:
+def load_hierarchy_config(path: Path) -> dict:
     """
-    Calcula pesos inversos normalizados para las últimas 14 columnas del CSV.
-
+    Load hierarchy configuration from YAML or JSON file.
+    
     Args:
-        label_path (Path): Ruta al archivo CSV.
-
+        path (Path): Path to hierarchy config file.
+        
     Returns:
-        torch.Tensor: Vector de pesos normalizados.
+        dict: Parsed hierarchy configuration.
     """
-    df = pd.read_csv(label_path)
-    label_cols = df.columns[-14:]  # Toma las últimas 14 columnas
-    means = df[label_cols].mean().values
-    weights = 1.0 / (means + 1e-6)  # Evita división por cero
-    weights = weights / weights.sum()
-    return torch.tensor(weights, dtype=torch.float32)
+    with open(path) as f:
+        config = yaml.safe_load(f)
+    return config["hierarchy"]
 
 # === Main Training Logic ===
 
@@ -148,7 +145,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_3/train.csv")
+    label_path = Path("data/exercise_2/train.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
@@ -161,13 +158,18 @@ def main():
         not cli.no_config_edit,
     )
 
+    if config.network.task_type == "regression":
+        hierarchy_config = load_hierarchy_config(Path("data/exercise_2/hierarchy.yaml"))
+        hierarchy_config = {
+            class_name: (info["parent"], info["num_classes"])
+            for class_name, info in hierarchy_config.items()
+        }
+    else: 
+        hierarchy_config = None
+
     print("\nLoading the dataset. \n")
 
     galaxy_dataset = load_image_dataset(image_dir, label_path, task = config.network.task_type, transform=None)
-    columns = pd.read_csv(label_path, nrows=0).columns.tolist()
-    columns.remove("Class2.2")
-    #columns.remove("Class6.2")
-    columns.remove("GalaxyID")
 
     print("Preprocessing the data. \n")
 
@@ -177,9 +179,6 @@ def main():
     scale_factor=1.0,
     batch_size=config.batch_size,
     normalize=True,
-    preprocess_probabilities=False,
-    columns=columns,
-    n = 3
     )
 
     galaxy_preprocessed = preprocessor.apply_preprocessing(galaxy_dataset)
@@ -196,6 +195,7 @@ def main():
             task = config.network.task_type
         )
     else:
+        weights = None
         split_dataloader = SplitGalaxyDataLoader(
             galaxy_preprocessed,
             config.validation_fraction,
@@ -206,24 +206,6 @@ def main():
 
     print("\n Building the CNN. \n")
 
-    #hierarchy_config = {
-        #'class1': (None, 2),       # 2 subclases, ninguna padre
-        #'class2': ('class1.2', 2), # 2 subclases, hijas de class1.1
-        #'class7': ('class1.1', 3)  # 3 subclases, hijas de class1.2
-    #}
-
-    hierarchy_config = {
-        'class1': (None, 2),  # Class1.1, Class1.2
-        
-        'class2': ('class1.2', 2),  # Class2.1, Class2.2
-        
-        'class7': ('class1.1', 3),  # Class7.1, Class7.2, Class7.3
-        
-        'class6': (None, 2),  # Class6.1, Class6.2
-        
-        'class8': ('class6.1', 7)  # Class8.1 a Class8.7
-    }
-
     network = build_network(
         galaxy_preprocessed.image_shape(),
         config.network,
@@ -232,10 +214,7 @@ def main():
 
     optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-5)
     
-    weights = get_class8_weights(label_path)
-    #loss = WeightedMSELoss(weights=weights)
-    #loss = get_loss(config=config)
-    loss = HierarchicalFocalLoss(hierarchy_config)
+    loss = get_loss(config=config, weight=weights, hierarchy_config=hierarchy_config)
 
     print_divider()
     print("Training... \n")

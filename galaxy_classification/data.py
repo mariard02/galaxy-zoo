@@ -132,112 +132,13 @@ def load_image_dataset(images_dir: Path, labels_path: Path, task = None, transfo
 
     # Return the dataset instance using the filtered image paths and labels
     return GalaxyDataset(image_paths, labels_df, task=task, transform=transform)
-        
-class CustomAugmentedDataset(Dataset):
-    """
-    A wrapper dataset that applies a special transformation to a specific class
-    while applying a standard transformation to all other samples.
-
-    Attributes:
-    -----------
-    dataset : Dataset
-        The base dataset containing images and labels.
-    transform_normal : callable
-        Standard transformation applied to all images.
-    transform_1_3 : callable
-        Special transformation applied only to class 1.3 samples.
-    """
-    def __init__(self, dataset, transform_normal, transform_1_3):
-        self.dataset = dataset
-        self.transform_normal = self._ensure_tensor_transform(transform_normal)
-        self.transform_1_3 = self._ensure_tensor_transform(transform_1_3)
-        self.file_list = getattr(dataset, 'file_list', None)
-        self.labels_df = getattr(dataset, 'labels_df', None)
-
-    def _ensure_tensor_transform(self, transform):
-        """
-        Ensures the output of the transform is always a tensor.
-        Useful in case the input transform does not convert to tensor.
-        """
-        if transform is None:
-            return transforms.ToTensor()
-        
-        return transforms.Compose([
-            transform,
-            transforms.Lambda(lambda x: x if isinstance(x, torch.Tensor) else transforms.ToTensor()(x))
-        ])
-
-    def __getitem__(self, idx):
-        """
-        Returns a transformed image and its label.
-        Applies `transform_1_3` if the sample belongs to class 1.3,
-        otherwise applies `transform_normal`.
-
-        Parameters:
-        -----------
-        idx : int
-            Index of the sample to retrieve.
-
-        Returns:
-        --------
-        (img, label) : tuple
-            Transformed image and its corresponding label.
-        """
-        img, label = self.dataset[idx]
-        
-        # Apply the normal transform first (guaranteed to return a tensor)
-        #img = self.transform_normal(img)
-
-        # Decide whether to apply the special class 1.3 transform
-        if isinstance(label, torch.Tensor):
-            if label.dim() > 0:  
-                if label[2] == 1:
-                    img = self.transform_1_3(img)
-
-        return img, label
-
-    def __len__(self):
-        """Returns the total number of samples in the dataset."""
-        return len(self.dataset)
-
-    def image_shape(self):
-        """
-        Returns the shape of a transformed image.
-        Useful to verify dimensions before defining a model.
-        """
-        try:
-            img, _ = self[0]
-            return img.shape
-        except Exception as e:
-            raise RuntimeError(f"Could not determine image shape: {str(e)}")
-
-
-def load_custom_image_dataset(dataset: GalaxyDataset, transform=None, transform2=None) -> GalaxyDataset:
-    """
-    Wraps a GalaxyDataset with custom transformations using CustomAugmentedDataset.
-
-    Parameters:
-    -----------
-    dataset : GalaxyDataset
-        The base dataset containing image-label pairs.
-    transform : callable, optional
-        The standard transformation to apply to all images.
-    transform2 : callable, optional
-        The special transformation to apply only to class 1.3 images.
-
-    Returns:
-    --------
-    CustomAugmentedDataset
-        A dataset that applies different transforms depending on the label.
-    """
-    return CustomAugmentedDataset(dataset=dataset, transform_normal=transform, transform_1_3=transform2)
 
 class GalaxyPreprocessor:
     """
     Enhanced preprocessor class that matches build_transform functionality while maintaining
     additional preprocessing capabilities.
     """
-    def __init__(self, image_dir: Path, label_path: Path, scale_factor=1., batch_size=64, normalize=True, preprocess_probabilities = False, columns = None, n = 1):
+    def __init__(self, image_dir: Path, label_path: Path, scale_factor=1., batch_size=64, normalize=True):
         """
         Initializes the preprocessor with automatic stats computation from the dataset.
         
@@ -253,18 +154,9 @@ class GalaxyPreprocessor:
             Batch size for computing dataset statistics.
         normalize : bool
             Whether to apply normalization
-        preprocess_probabilities: bool
-            Whether to preprocess probabilities
-        columns: list
-            List of columns to preprocess
-        n : float
-            Exponent for the preprocessing of the probabilities
         """
         self.scale_factor = scale_factor
         self.normalize = normalize
-        self.probabilities = preprocess_probabilities
-        self.columns = columns
-        self.n = n
         
         # Calculate base transform for statistics computation
         base_transform = transforms.Compose([
@@ -322,16 +214,8 @@ class GalaxyPreprocessor:
     def apply_preprocessing(self, dataset):
         """
         Applies the complete preprocessing pipeline to a dataset.
-        Includes optional preprocessing of probabilities.
         """
         labels_df = dataset.labels_df.copy()
-
-        if self.probabilities and self.columns is not None:
-            for column in self.columns:
-                if column in labels_df.columns:
-                    labels_df[column] = labels_df[column] ** (1 / self.n)
-                else:
-                    raise ValueError(f"Column '{column}' not found in labels DataFrame.")
 
         return GalaxyDataset(
             file_list=dataset.file_list,
@@ -344,21 +228,12 @@ class GalaxyPreprocessor:
         Reverts scaling, normalization and probability preprocessing.
         Keeps other image transformations.
         """
-        base_dataset = dataset.dataset if isinstance(dataset, CustomAugmentedDataset) else dataset
+        base_dataset = dataset
         labels_df = base_dataset.labels_df.copy()
 
-        # Invert probability preprocessing if it was applied
-        if self.probabilities and self.columns is not None:
-            for column in self.columns:
-                if column in labels_df.columns:
-                    labels_df[column] = labels_df[column] ** self.n
-                else:
-                    raise ValueError(f"Column '{column}' not found in labels DataFrame.")
 
         def inverse_transform(img):
-            if isinstance(dataset, CustomAugmentedDataset):
-                img = dataset.transform_normal(img)
-            elif hasattr(dataset, 'transform') and dataset.transform:
+            if hasattr(dataset, 'transform') and dataset.transform:
                 img = dataset.transform(img)
 
             if self.normalize:

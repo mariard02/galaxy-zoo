@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 import os
 from sklearn.model_selection import train_test_split
+import yaml
 
 transform = transforms.Compose([
     transforms.ToTensor(), 
@@ -37,17 +38,38 @@ q1_test.to_csv("data/exercise_1/test.csv", index=False)
 # -------------------------------
 # TASK 2: Regression (roundness)
 # -------------------------------
-question2 = labels_df[["GalaxyID", "Class1.1", "Class1.2", "Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3"]][:3000]
+question2 = labels_df[["GalaxyID", "Class1.1", "Class1.2", "Class1.3", "Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3"]][:3000]
 q2_train, q2_test = train_test_split(question2, test_size=0.1, shuffle=True)
 
 os.makedirs("data/exercise_2", exist_ok=True)
 q2_train.to_csv("data/exercise_2/train.csv", index=False)
 q2_test.to_csv("data/exercise_2/test.csv", index=False)
 
+hierarchy_config_2 = {
+    "hierarchy": {
+        "class1": {
+            "parent": None,
+            "num_classes": 3,
+        },
+        "class2": {
+            "parent": "class1.2",
+            "num_classes": 2,
+        },
+        "class7": {
+            "parent": "class1.1",
+            "num_classes": 3,
+        },
+    }
+}
+
+hierarchy_path_2 = "data/exercise_2/hierarchy.yaml"
+with open(hierarchy_path_2, 'w') as f:
+        yaml.dump(hierarchy_config_2, f, sort_keys=False, default_flow_style=False)
+
 # -------------------------------
 # TASK 3: Regression (odd features)
 # -------------------------------
-question3 = labels_df[["GalaxyID", "Class1.1", "Class1.2", "Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3",
+question3 = labels_df[["GalaxyID", "Class1.1", "Class1.2", "Class1.3", "Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3",
                        "Class6.1", "Class6.2", "Class8.1", "Class8.2", "Class8.3", 
                        "Class8.4", "Class8.5", "Class8.6", "Class8.7"]][:3000]
 q3_train, q3_test = train_test_split(question3, test_size=0.1, shuffle=True)
@@ -56,17 +78,36 @@ os.makedirs("data/exercise_3", exist_ok=True)
 q3_train.to_csv("data/exercise_3/train.csv", index=False)
 q3_test.to_csv("data/exercise_3/test.csv", index=False)
 
-# -------------------------------
-# TASK 4: Informed regression
-# -------------------------------
-q4_mask = labels_df[["Class1.1", "Class1.2"]].max(axis=1) > 0.8
-question4_class = labels_df.loc[q4_mask, ["GalaxyID", "Class1.1", "Class1.2"]][:3000].copy()
-question4_class.loc[:, ["Class1.1", "Class1.2"]] = (question4_class[["Class1.1", "Class1.2"]].eq(question4_class[["Class1.1", "Class1.2"]].max(axis=1), axis=0)).astype(int)
+hierarchy_config_3 = {
+        "hierarchy": {
+            "class1": {
+                "parent": None,
+                "num_classes": 3,
+                "comment": "Class1.1, Class1.2, Class1.3"
+            },
+            "class2": {
+                "parent": "class1.2",
+                "num_classes": 2,
+                "comment": "Class2.1, Class2.2"
+            },
+            "class7": {
+                "parent": "class1.1",
+                "num_classes": 3,
+                "comment": "Class7.1, Class7.2, Class7.3"
+            },
+            "class6": {
+                "parent": None,
+                "num_classes": 2,
+                "comment": "Class6.1, Class6.2"
+            },
+            "class8": {
+                "parent": "class6.1",
+                "num_classes": 7,
+                "comment": "Class8.1 a Class8.7"
+            }
+        }
+    }
 
-question4_extra = labels_df.loc[q4_mask, ["Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3"]][:3000]
-question4 = pd.concat([question4_class, question4_extra], axis=1)
-q4_train, q4_test = train_test_split(question4, test_size=0.1, shuffle=True)
-
-os.makedirs("data/exercise_4", exist_ok=True)
-q4_train.to_csv("data/exercise_4/train.csv", index=False)
-q4_test.to_csv("data/exercise_4/test.csv", index=False)
+hierarchy_path_3 = "data/exercise_3/hierarchy.yaml"
+with open(hierarchy_path_3, 'w') as f:
+        yaml.dump(hierarchy_config_3, f, sort_keys=False, default_flow_style=False)

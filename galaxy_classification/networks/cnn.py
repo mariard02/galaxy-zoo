@@ -40,8 +40,7 @@ class GalaxyClassificationCNNConfig:
     convolution_kernel_size: int
     mlp_hidden_unit_count: int
     output_units: int
-    task_type: Literal["classification_binary", "classification_multiclass", "regression", "informed_regression"]
-
+    task_type: Literal["classification_binary", "classification_multiclass", "regression"]
 
 class DoubleConvolutionBlock(Module):
     """
@@ -114,9 +113,7 @@ class GalaxyCNNMLP(Module):
     2. MLP feature processor
     3. Task-specific output heads:
        - Classification (binary/multiclass)
-       - Regression
-       - Informed regression (regression conditioned on classification)
-       - Hierarchical outputs
+       - Hierarchical outputs for regression
 
     Args:
         input_image_shape: Tuple of (channels, height, width)
@@ -134,12 +131,12 @@ class GalaxyCNNMLP(Module):
         convolution_kernel_size: int,
         mlp_hidden_unit_count: int,
         output_units: int,
-        task_type: Literal["classification_binary", "classification_multiclass", "regression", "informed_regression"],
+        task_type: Literal["classification_binary", "classification_multiclass", "regression"],
         hierarchy_config: Optional[Dict] = None
     ):
         super().__init__()
         self.task_type = task_type
-        VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression", "informed_regression"}
+        VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
         if task_type not in VALID_TASK_TYPES:
             raise ValueError(f"Unsupported task_type: {task_type}")
 
@@ -186,11 +183,7 @@ class GalaxyCNNMLP(Module):
         )
 
         # Task-specific output heads
-        if self.task_type == "informed_regression":
-            # Two-head architecture: classification + regression
-            self.classification_head = Linear(output_units, 2)
-            self.regression_head = ConstrainedOutputLayer(output_units + 2, hierarchy_config)
-        elif self.task_type == "regression":
+        if self.task_type == "regression":
             self.output_head = ConstrainedOutputLayer(output_units, hierarchy_config)
         else:
             self.output_head = Linear(output_units, output_units)
@@ -209,20 +202,7 @@ class GalaxyCNNMLP(Module):
         x = self.cnn(x)
         features = self.mlp(x)
 
-        if self.task_type == "informed_regression":
-            # Classification branch
-            logits_cls = self.classification_head(features)
-            probs_cls = F.softmax(logits_cls, dim=1)
-            
-            # Regression branch conditioned on classification
-            combined = torch.cat([features, probs_cls], dim=1)
-            output_reg = self.regression_head(combined)
-            
-            return output_reg, logits_cls
-        elif self.task_type == "regression":
-            return self.output_head(features)
-        else:
-            return self.output_head(features)
+        return self.output_head(features)
 
 
 class ConstrainedOutputLayer(Module):
@@ -256,10 +236,6 @@ class ConstrainedOutputLayer(Module):
             # Store parent relationships for forward pass
             if parent is not None:
                 self.parent_relationships[class_name] = parent
-
-        print("Subclasses generated:")
-        for class_name in self.layers:
-            print(f"{class_name}: {self.layers[class_name]}")
     
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -369,8 +345,6 @@ class LossFunction:
     Supports:
     - Binary classification (BCEWithLogitsLoss)
     - Multiclass classification (CrossEntropyLoss)
-    - Regression (MSELoss or HierarchicalFocalLoss)
-    - Informed regression (combined classification + regression loss)
     - Hierarchical outputs (HierarchicalFocalLoss)
 
     Args:
@@ -388,7 +362,6 @@ class LossFunction:
             "classification_binary",
             "classification_multiclass",
             "regression",
-            "informed_regression"
         ],
         weight: Tensor = None,
         classification_weight: float = 1.0,
@@ -400,7 +373,6 @@ class LossFunction:
             "classification_binary",
             "classification_multiclass",
             "regression",
-            "informed_regression"
         }
         
         if task_type not in VALID_TASK_TYPES:
@@ -422,65 +394,11 @@ class LossFunction:
                 hierarchy_config=hierarchy_config,
                 **self.hierarchical_loss_params
             )
-        elif self.task_type == "informed_regression":
-            self.classification_weight = classification_weight
-            self.regression_weight = regression_weight
-            self.classification_loss_fn = CrossEntropyLoss(weight=weight)
-            self.regression_loss_fn = MSELoss()
+        else:
+            raise ValueError("Loss function not supported")
+
 
     def get(self) -> Module:
         """Returns the appropriate loss function for the configured task."""
-        if self.task_type == "informed_regression":
-            return self.informed_regression_loss
         return self.loss_fn
-
-    def informed_regression_loss(
-        self, 
-        output_classification: Tensor, 
-        output_regression: Tensor, 
-        target_classification: Tensor, 
-        target_regression: Tensor
-    ) -> Tensor:
-        """
-        Combines classification and regression losses for informed regression.
-
-        Args:
-            output_classification: Model's classification output
-            output_regression: Model's regression output
-            target_classification: True classification labels
-            target_regression: True regression values
-
-        Returns:
-            Weighted sum of classification and regression losses
-        """
-        classification_loss = self.classification_loss_fn(output_classification, target_classification)
-        regression_loss = self.regression_loss_fn(output_regression, target_regression)
-        return self.classification_weight * classification_loss + self.regression_weight * regression_loss
     
-class WeightedMSELoss(Module):
-    """
-    Weighted Mean Squared Error loss.
-
-    Features:
-    - Applies per-output weights
-    - Automatically pads weights if fewer than 14 outputs
-    - Maintains mean reduction
-
-    Args:
-        weights: Tensor of weights for each output dimension
-    """
-    def __init__(self, weights: torch.Tensor):
-        super(WeightedMSELoss, self).__init__()
-        if weights.numel() < 14:
-            # Pad weights to 14 dimensions if needed
-            padded_weights = torch.ones(14)
-            padded_weights[:weights.numel()] = weights
-            self.weights = padded_weights
-        else:
-            self.weights = weights
-
-    def forward(self, prediction, target):
-        """Compute weighted MSE loss."""
-        squared_diff = (prediction - target) ** 2
-        weighted_loss = self.weights.to(prediction.device) * squared_diff
-        return weighted_loss.mean()
