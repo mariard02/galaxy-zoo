@@ -96,7 +96,7 @@ hierarchy_config_3 = {
                 "comment": "Class7.1, Class7.2, Class7.3"
             },
             "class6": {
-                "parent": None,
+                "parent": ["class1.1", "class1.2"],
                 "num_classes": 2,
                 "comment": "Class6.1, Class6.2"
             },

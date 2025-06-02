@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Dict, List, Tuple, Optional
+from typing import Literal, Dict, List, Tuple, Optional, Union
 import torch
 from torch import Tensor
 from torch.nn import (
@@ -170,13 +170,7 @@ class GalaxyCNNMLP(Module):
             ReLU(),
             Linear(mlp_hidden_unit_count, mlp_hidden_unit_count * 2),  # Expand
             ReLU(),
-            Linear(mlp_hidden_unit_count * 2, mlp_hidden_unit_count * 4),  # Expand further
-            ReLU(),
-            Linear(mlp_hidden_unit_count * 4, mlp_hidden_unit_count * 2),  # Contract
-            ReLU(),
-            Linear(mlp_hidden_unit_count * 2, output_units * 4),  # Prepare for output
-            ReLU(),
-            Linear(output_units * 4, output_units * 2),
+            Linear(mlp_hidden_unit_count * 2, output_units * 2),  # Prepare for output
             ReLU(),
             Linear(output_units * 2, output_units),
             ReLU()
@@ -204,40 +198,40 @@ class GalaxyCNNMLP(Module):
 
         return self.output_head(features)
 
-
 class ConstrainedOutputLayer(Module):
     """
     Hierarchical output layer that enforces parent-child relationships between outputs.
 
     Key Features:
     - Maintains probabilistic consistency in hierarchical outputs
-    - Child class probabilities are constrained by parent probabilities
-    - Supports arbitrary tree-like hierarchies
+    - Child class probabilities are constrained by one or more parent probabilities
+    - Supports arbitrary tree-like hierarchies with shared subtrees
 
     Args:
         input_features: Number of input features
         hierarchy_config: Dictionary defining class hierarchy structure.
                          Format: {
-                             'class1': (None, 2),  # (parent, num_subclasses)
-                             'class2': ('class1.1', 2),  # Child of first subclass of class1
-                             'class7': ('class1.2', 3)   # Child of second subclass of class1
+                             'class1': (None, 2),  # (parent(s), num_subclasses)
+                             'class2': ('class1.1', 2),
+                             'class7': ('class1.2', 3),
+                             'class8': (['class1.1', 'class7.3'], 2)  # Multiple parents
                          }
     """
-    def __init__(self, input_features: int, hierarchy_config: Dict[str, Tuple[str, int]]):
+    def __init__(self, input_features: int, hierarchy_config: Dict[str, Tuple[Union[str, List[str], None], int]]):
         super().__init__()
         self.hierarchy = hierarchy_config
         self.parent_relationships = {}
         
         # Create linear layers for each class group
         self.layers = ModuleDict()
-        for class_name, (parent, num_subclasses) in hierarchy_config.items():
+        for class_name, (parents, num_subclasses) in hierarchy_config.items():
             self.layers[class_name] = Linear(input_features, num_subclasses)
             
             # Store parent relationships for forward pass
-            if parent is not None:
-                self.parent_relationships[class_name] = parent
-    
-    def forward(self, x: Tensor) -> Tensor:
+            if parents is not None:
+                self.parent_relationships[class_name] = parents
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass with hierarchical constraints.
 
@@ -248,30 +242,42 @@ class ConstrainedOutputLayer(Module):
             Tensor of concatenated probabilities respecting hierarchy constraints
         """
         outputs = {}
-        # First pass: compute all base outputs
+
+        # First pass: compute base logits or probabilities
         for class_name in self.hierarchy:
             logits = self.layers[class_name](x)
-            
             if class_name not in self.parent_relationships:
-                # Root class - use sigmoid
+                # Root class - independent
                 outputs[class_name] = torch.sigmoid(logits)
             else:
-                # Store logits for dependent processing
+                # Save logits for now
                 outputs[class_name] = logits
-        
-        # Second pass: process dependent classes
-        for class_name, parent in self.parent_relationships.items():
-            parent_name, parent_subclass = parent.split('.')
-            parent_subclass = int(parent_subclass) - 1  # Convert to 0-based index
-            
-            # Get relevant parent probability
-            parent_prob = outputs[parent_name][:, parent_subclass].unsqueeze(1)
-            
-            # Apply softmax and scale by parent probability
-            outputs[class_name] = F.softmax(outputs[class_name], dim=1) * parent_prob
-        
-        # Concatenate all outputs in original order
+
+        # Second pass: apply constraints for children
+        for class_name, parents in self.parent_relationships.items():
+            # Ensure list format for consistency
+            if isinstance(parents, str):
+                parents = [parents]
+
+            parent_probs = []
+            for parent in parents:
+                parent_name, parent_subclass = parent.split('.')
+                parent_subclass = int(parent_subclass) - 1  # 1-based to 0-based
+                parent_prob = outputs[parent_name][:, parent_subclass].unsqueeze(1)
+                parent_probs.append(parent_prob)
+
+            # Combine parent probabilities (sum)
+            joint_parent_prob = torch.stack(parent_probs, dim=0).sum(dim=0)
+
+            # Optional: clamp to [0, 1] to avoid exceeding 1
+            joint_parent_prob = torch.clamp(joint_parent_prob, max=1.0)
+
+            # Apply softmax to logits and scale by joint parent prob
+            outputs[class_name] = F.softmax(outputs[class_name], dim=1) * joint_parent_prob
+
+        # Concatenate all outputs in hierarchy order
         return torch.cat([outputs[class_name] for class_name in self.hierarchy], dim=1)
+
     
 class HierarchicalFocalLoss(Module):
     """

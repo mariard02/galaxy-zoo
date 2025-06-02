@@ -79,7 +79,7 @@ def main():
     image_dir = Path("data/images/images_training_rev1")
     label_path = Path("data/exercise_2/test.csv")
 
-    if config.network.task_type == "regression":
+    if config.task_type == "regression":
         hierarchy_config = load_hierarchy_config(Path("data/exercise_2/hierarchy.yaml"))
         hierarchy_config = {
             class_name: (info["parent"], info["num_classes"])

@@ -1,5 +1,5 @@
 training:
-  epoch_count: 75
+  epoch_count: 100
   batch_size: 32
   learning_rate: 8.e-4
 

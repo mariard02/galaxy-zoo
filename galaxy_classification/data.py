@@ -250,8 +250,6 @@ class GalaxyPreprocessor:
             transform=inverse_transform
         )
 
-
-
 @dataclass
 class SplitGalaxyDataLoader:
     training_dataloader: DataLoader
