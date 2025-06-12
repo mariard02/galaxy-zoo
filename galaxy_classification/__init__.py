@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from torch import Tensor
 import torch
-from torch.nn import Module, CrossEntropyLoss, MSELoss
+from torch.nn import Module, CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 import colorful as cf
@@ -199,6 +199,10 @@ def compute_average_epoch_loss(
             labels_predicted = model(images)
             # Forward pass
             loss_batch = loss(labels_predicted, labels)
+        elif isinstance(loss, BCEWithLogitsLoss):
+            labels = labels.float()
+            labels_predicted = model(images)
+            loss_batch = loss(labels_predicted, labels)
         elif isinstance(loss, MSELoss):
             labels = labels.float()
             labels_predicted = model(images)
@@ -269,7 +273,7 @@ def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> f
     Args:
         model (Module): The model to evaluate.
         dataloader (DataLoader): The dataloader providing the data.
-        task_type (str): The task type (one of 'classification_binary', 'classification_multiclass', 'regression', 'informed_regression').
+        task_type (str): The task type (one of 'classification_multiclass', 'regression').
 
     Returns:
         float: The accuracy (or appropriate metric) of the model on the data.
@@ -284,7 +288,7 @@ def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> f
         # Get predictions from the model
         labels_predicted = model(images)
 
-        if task_type in ["classification_binary", "classification_multiclass"]:
+        if task_type == "classification_multiclass":
             # For classification tasks, take the class with the highest probability
             labels_predicted = labels_predicted.argmax(dim=1)
             
@@ -394,67 +398,46 @@ def plot_roc_curves(all_preds, all_labels, config, path: Path, class_names: list
     Args:
         all_preds (Tensor): Model's predicted probabilities for each class (shape: [batch_size, num_classes]).
         all_labels (Tensor): True labels, either in one-hot encoding or class indices (shape: [batch_size]).
-        config (EvaluationConfig): Configuration object that holds task type (binary or multiclass).
+        config (EvaluationConfig): Configuration object that holds task type.
         path (Path): Path to save the plot.
         class_names (list[str]): List of class names for labeling the axes.
     """
     # Handle multiclass classification
-    if config.task_type == "classification_multiclass":
-        if all_labels.ndim > 1:
-            all_labels = torch.argmax(all_labels, dim=1)  # Convert one-hot to class indices
+    if all_labels.ndim > 1:
+        all_labels = torch.argmax(all_labels, dim=1)  # Convert one-hot to class indices
 
-        fig, ax = plt.subplots(figsize=(8, 6))  # Create a figure with a single axis
+    fig, ax = plt.subplots(figsize=(8, 6))  # Create a figure with a single axis
 
-        num_classes = all_preds.shape[1]
-        for i in range(num_classes):
-            # Generate true binary labels for class i (1 if class i, else 0)
-            y_true = (all_labels == i).numpy().astype(int)
-            # Extract predicted probabilities for class i
-            y_score = all_preds[:, i].numpy()
+    num_classes = all_preds.shape[1]
+    for i in range(num_classes):
+        # Generate true binary labels for class i (1 if class i, else 0)
+        y_true = (all_labels == i).numpy().astype(int)
+        # Extract predicted probabilities for class i
+        y_score = all_preds[:, i].numpy()
 
-            # Plot ROC curve for class i
-            RocCurveDisplay.from_predictions(
-                y_true,
-                y_score,
-                name=class_names[i],
-                ax=ax,  # Draw on the same axis
-            )
-
-        # Adjust plot settings
-        ax.plot([0, 1], [0, 1], "k--")  # Random guess line
-        plt.rcParams.update({
-            "text.usetex": True,
-            "font.family": "serif",
-            "font.serif": ["Computer Modern Roman"],
-            "axes.unicode_minus": False,
-            "text.latex.preamble": r"\usepackage{lmodern}"
-        })
-        ax.set_xlabel("False Positive Rate")
-        ax.set_ylabel("True Positive Rate")
-        ax.set_title("ROC Curves")
-        ax.legend()
-        fig.savefig(path, bbox_inches="tight")  # Save the plot to the specified path
-        plt.close(fig)  # Close the plot to free memory
-
-    # Handle binary classification
-    elif config.task_type == "classification_binary":
-        fig, ax = plt.subplots(figsize=(8, 6))
-
+        # Plot ROC curve for class i
         RocCurveDisplay.from_predictions(
-            all_labels.numpy(),
-            all_preds.squeeze().numpy(),
-            name="Binary Classification",
-            ax=ax,
+            y_true,
+            y_score,
+            name=class_names[i],
+            ax=ax,  # Draw on the same axis
         )
 
-        ax.plot([0, 1], [0, 1], "k--")  # Random guess line
-        ax.set_xlabel("False Positive Rate")
-        ax.set_ylabel("True Positive Rate")
-        ax.set_title("ROC Curve")
-        ax.grid()
-        ax.legend()
-        fig.savefig(path, bbox_inches="tight")
-        plt.close(fig)
+    # Adjust plot settings
+    ax.plot([0, 1], [0, 1], "k--")  # Random guess line
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+        "axes.unicode_minus": False,
+        "text.latex.preamble": r"\usepackage{lmodern}"
+    })
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC Curves")
+    ax.legend()
+    fig.savefig(path, bbox_inches="tight")  # Save the plot to the specified path
+    plt.close(fig)  # Close the plot to free memory
 
 def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names: list[str]):
     """
@@ -472,11 +455,6 @@ def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names
             all_labels = torch.argmax(all_labels, dim=1)  
 
         preds = torch.argmax(all_preds, dim=1) 
-
-    elif config.task_type == "classification_binary":
-        if all_preds.ndim > 1 and all_preds.shape[1] == 1:
-            all_preds = all_preds.squeeze(dim=1)
-        preds = (all_preds >= 0.5).long()
     else:    
         raise ValueError(f"Unsupported task type: {config.task_type}")
     
@@ -499,7 +477,7 @@ def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names
     fig.tight_layout()
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
-    
+
 def plot_feature_histograms(
     properties_predicted,
     properties_true,

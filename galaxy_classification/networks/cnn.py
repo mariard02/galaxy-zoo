@@ -34,13 +34,13 @@ class GalaxyClassificationCNNConfig:
         convolution_kernel_size (int): Kernel size for convolution operations.
         mlp_hidden_unit_count (int): Number of units in the first MLP layer.
         output_units (int): Number of output units (e.g., classes).
-        task_type (Literal): Type of machine learning task (binary, multiclass, or regression).
+        task_type (Literal): Type of machine learning task (classification or regression).
     """
     channel_count_hidden: int
     convolution_kernel_size: int
     mlp_hidden_unit_count: int
     output_units: int
-    task_type: Literal["classification_binary", "classification_multiclass", "regression"]
+    task_type: Literal["classification_multiclass", "regression"]
 
 class DoubleConvolutionBlock(Module):
     """
@@ -112,7 +112,7 @@ class GalaxyCNNMLP(Module):
     1. CNN feature extractor (DoubleConvolutionBlocks with pooling)
     2. MLP feature processor
     3. Task-specific output heads:
-       - Classification (binary/multiclass)
+       - Classification 
        - Hierarchical outputs for regression
 
     Args:
@@ -131,12 +131,12 @@ class GalaxyCNNMLP(Module):
         convolution_kernel_size: int,
         mlp_hidden_unit_count: int,
         output_units: int,
-        task_type: Literal["classification_binary", "classification_multiclass", "regression"],
+        task_type: Literal[ "classification_multiclass", "regression"],
         hierarchy_config: Optional[Dict] = None
     ):
         super().__init__()
         self.task_type = task_type
-        VALID_TASK_TYPES = {"classification_binary", "classification_multiclass", "regression"}
+        VALID_TASK_TYPES = {"classification_multiclass", "regression"}
         if task_type not in VALID_TASK_TYPES:
             raise ValueError(f"Unsupported task_type: {task_type}")
 
@@ -168,9 +168,9 @@ class GalaxyCNNMLP(Module):
             Flatten(),
             Linear(flattened_size, mlp_hidden_unit_count),
             ReLU(),
-            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count * 2),  # Expand
-            ReLU(),
-            Linear(mlp_hidden_unit_count * 2, output_units * 2),  # Prepare for output
+            #Linear(mlp_hidden_unit_count, mlp_hidden_unit_count * 2),  # Expand
+            #ReLU(),
+            Linear(mlp_hidden_unit_count, output_units * 2),  # Prepare for output
             ReLU(),
             Linear(output_units * 2, output_units),
             ReLU()
@@ -308,7 +308,6 @@ class HierarchicalFocalLoss(Module):
         
         self.class_weights = class_weights
         self.class_ranges = self._calculate_class_ranges(hierarchy_config)
-
     
     def _calculate_class_ranges(self, hierarchy_config):
         """Calculates column ranges for each class group in concatenated output."""
@@ -349,7 +348,6 @@ class LossFunction:
     Factory class providing appropriate loss functions based on task type.
 
     Supports:
-    - Binary classification (BCEWithLogitsLoss)
     - Multiclass classification (CrossEntropyLoss)
     - Hierarchical outputs (HierarchicalFocalLoss)
 
@@ -365,7 +363,6 @@ class LossFunction:
     def __init__(
         self,
         task_type: Literal[
-            "classification_binary",
             "classification_multiclass",
             "regression",
         ],
@@ -374,7 +371,6 @@ class LossFunction:
         hierarchical_loss_params: Optional[Dict] = None
     ):
         VALID_TASK_TYPES = {
-            "classification_binary",
             "classification_multiclass",
             "regression",
         }
@@ -387,13 +383,11 @@ class LossFunction:
         self.hierarchical_loss_params = hierarchical_loss_params or {}
         
         # Initialize appropriate loss functions
-        if self.task_type == "classification_binary":
-            self.loss_fn = BCEWithLogitsLoss(weight=weight)
-        elif self.task_type == "classification_multiclass":
+        if self.task_type == "classification_multiclass":
             self.loss_fn = CrossEntropyLoss(weight=weight)
         elif self.task_type == "regression":
             if not hierarchy_config:
-                raise ValueError("hierarchy_config must be provided for hierarchical task type")
+                raise ValueError("hierarchy_config must be provided for regression tasks")
             self.loss_fn = HierarchicalFocalLoss(
                 hierarchy_config=hierarchy_config,
                 **self.hierarchical_loss_params

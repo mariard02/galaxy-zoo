@@ -145,7 +145,7 @@ def main():
     cli: TrainingCli = args.cli
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_3/train.csv")
+    label_path = Path("data/exercise_1/train.csv")
 
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()

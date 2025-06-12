@@ -23,7 +23,7 @@ class EvaluationCli:
 @dataclass
 class EvaluationConfig(BaseModel):
     batch_size: int
-    task_type: str  # "classification_multiclass", "classification_binary", or "regression"
+    task_type: str  # "classification_multiclass" or "regression"
 
 def load_config(path: Path) -> EvaluationConfig:
     with open(path) as config_file:
@@ -77,7 +77,7 @@ def main():
     config = load_config(Path(f"outputs/{cli.run_name}/config.yaml"))
 
     image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_2/test.csv")
+    label_path = Path("data/exercise_1/test.csv")
 
     if config.task_type == "regression":
         hierarchy_config = load_hierarchy_config(Path("data/exercise_2/hierarchy.yaml"))
@@ -135,8 +135,6 @@ def main():
             
             if config.task_type == "classification_multiclass":
                 probs = torch.softmax(outputs, dim=1)
-            elif config.task_type == "classification_binary":
-                probs = torch.sigmoid(outputs).unsqueeze(1)
             else:  # regression
                 probs = outputs  # Direct predictions
                 
