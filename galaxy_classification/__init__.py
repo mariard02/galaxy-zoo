@@ -16,36 +16,39 @@ cf.use_style('monokai')
 
 def print_epoch_info(epoch_index, training_loss, training_accuracy, validation_loss, validation_accuracy, printing_interval_epochs):
     """
-    Prints the summary of training and validation results for each epoch, 
-    including the loss and accuracy, in a nicely formatted output with a 
-    box around the epoch number.
+    Prints a nicely formatted summary of training and validation metrics 
+    at specified epoch intervals. The output includes loss and accuracy for both 
+    training and validation sets, with colored formatting and a box around the epoch number.
 
     Args:
-        epoch_index (int): The current epoch number.
-        training_loss (float): The loss on the training data.
-        training_accuracy (float): The accuracy on the training data.
-        validation_loss (float): The loss on the validation data.
-        validation_accuracy (float): The accuracy on the validation data.
-        printing_interval_epochs (int): The interval at which to print the epoch information.
+        epoch_index (int): Index of the current epoch (starting from 0).
+        training_loss (float): Average loss on the training dataset during the epoch.
+        training_accuracy (float or None): Accuracy on the training dataset. Can be None if not applicable.
+        validation_loss (float): Average loss on the validation dataset during the epoch.
+        validation_accuracy (float or None): Accuracy on the validation dataset. Can be None if not applicable.
+        printing_interval_epochs (int): Frequency (in epochs) at which to print the summary.
     """
+    # Only print if we're at the specified printing interval
     if (epoch_index + 1) % printing_interval_epochs == 0:
-        # Create a formatted string with a box around the epoch
+        # Format the epoch title with color and bold style
         epoch_str = f"{cf.purple}{cf.bold}Epoch {epoch_index + 1}{cf.reset}"
 
-        # Create strings for training and validation metrics without changing background colors
+        # Format loss and accuracy values for training
         training_loss_str = f"Training Loss: {training_loss:.2e}"
         if training_accuracy is not None:
             training_accuracy_str = f"Training Accuracy: {training_accuracy * 100.0:.2f}%"
+
+        # Format loss and accuracy values for validation
         validation_loss_str = f"Validation Loss: {validation_loss:.2e}"
         if validation_accuracy is not None:
             validation_accuracy_str = f"Validation Accuracy: {validation_accuracy * 100.0:.2f}%"
 
-        # Print with a box around the epoch
+        # Print a decorative box around the epoch number
         print(f"{cf.bold}{cf.purple}{'=' * (len(epoch_str) + 4)}{cf.reset}")
         print(f"{cf.bold}{cf.purple}          {epoch_str}   {cf.reset}")
         print(f"{cf.bold}{cf.purple}{'=' * (len(epoch_str) + 4)}{cf.reset}")
 
-        # Print the rest of the metrics
+        # Print training and validation metrics
         print(f"{training_loss_str}")
         if training_accuracy is not None:
             print(f"{training_accuracy_str}")
@@ -221,21 +224,43 @@ def compute_average_epoch_loss(
     return epoch_loss_train / len(dataloader)
 
 def compute_mse(network, dataloader):
+    """
+    Computes the Mean Squared Error (MSE) between the predictions of a model 
+    and the true targets over a given dataloader.
+
+    This function sets the model to evaluation mode, disables gradient computation,
+    and accumulates predictions and true values to compute the MSE over the full dataset.
+
+    Args:
+        network (torch.nn.Module): The neural network model to evaluate.
+        dataloader (torch.utils.data.DataLoader): The data loader providing input-target pairs.
+
+    Returns:
+        float: The mean squared error (MSE) between predictions and targets.
+    """
+    # Set the model to evaluation mode (disables dropout, etc.)
     network.eval()
+
     y_true, y_pred = [], []
 
+    # Disable gradient calculation for faster computation and reduced memory usage
     with torch.no_grad():
         for inputs, targets in dataloader:
+            # Forward pass to get predictions
             outputs = network(inputs)
+
+            # Store targets and predictions for later concatenation
             y_true.append(targets)
             y_pred.append(outputs)
 
+    # Concatenate all batches into a single tensor
     y_true = torch.cat(y_true, dim=0)
     y_pred = torch.cat(y_pred, dim=0)
 
+    # Compute mean squared error using PyTorch's functional API
     mse = torch.nn.functional.mse_loss(y_pred, y_true).item()
-    return mse
 
+    return mse
 
 def compute_accuracy(model: Module, dataloader: DataLoader, task_type: str) -> float:
     """
@@ -474,57 +499,97 @@ def plot_confusion_matrix(all_preds, all_labels, config, path: Path, class_names
     fig.tight_layout()
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
+    
+def plot_feature_histograms(
+    properties_predicted,
+    properties_true,
+    xrange: tuple[float, float],
+    path: Path,
+    bins: int = 50,
+    title: str = '',
+    last_n_features: int | None = None,
+    **kwargs
+):
+    """
+    Plots histograms comparing the predicted and true values for each feature.
 
-def plot_feature_histograms(properties_predicted, properties_true, xrange: tuple[float, float], path: Path, bins: int = 50, title: str = '', last_n_features: int | None = None, **kwargs):
-    # Convertir tensores a numpy arrays si es necesario
+    This function is useful for visually evaluating how well the predicted distributions
+    match the true distributions for a set of features. Histograms are overlaid for each 
+    feature using matplotlib and saved to the specified path.
+
+    Args:
+        properties_predicted (np.ndarray or torch.Tensor): Predicted feature values.
+        properties_true (np.ndarray or torch.Tensor): Ground truth feature values.
+        xrange (tuple[float, float]): X-axis range for all histograms (shared across features).
+        path (Path): Destination to save the figure.
+        bins (int, optional): Number of bins to use in the histograms. Defaults to 50.
+        title (str, optional): Optional title for the plot. Defaults to ''.
+        last_n_features (int, optional): If specified, only the last N features are plotted.
+        **kwargs: Additional keyword arguments passed to `plt.hist`.
+    """
+    # Convert tensors to numpy arrays if needed
     if hasattr(properties_predicted, 'numpy'):
         properties_predicted = properties_predicted.detach().numpy()
     if hasattr(properties_true, 'numpy'):
         properties_true = properties_true.detach().cpu().numpy()
 
+    # Ensure 2D shape for consistency
     if properties_predicted.ndim == 1:
         properties_predicted = properties_predicted.reshape(-1, 1)
     if properties_true.ndim == 1:
         properties_true = properties_true.reshape(-1, 1)
 
-    # Seleccionar solo las últimas N features si se especifica
+    # Keep only the last N features if requested
     if last_n_features is not None:
         properties_predicted = properties_predicted[:, -last_n_features:]
         properties_true = properties_true[:, -last_n_features:]
 
     n_features = properties_predicted.shape[1]
-    n_cols = min(n_features, 3)
-    n_rows = (n_features - 1) // 3 + 1
+
+    # Set up the subplot grid
+    n_cols = min(n_features, 3)  # Up to 3 histograms per row
+    n_rows = (n_features - 1) // 3 + 1  # Enough rows to fit all features
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_features * 3 + 5, 3.5 * n_rows))
 
+    # Flatten axes array for easy iteration
     if isinstance(axes, np.ndarray):
         axes = axes.flatten()
     else:
         axes = [axes]
 
+    # Global title for the figure
     plt.suptitle("Feature value distribution" + (f" ({title})" if title else ""))
     plt.subplots_adjust(wspace=0.5)
 
+    # Plot histograms for each feature
     for i, axis in enumerate(axes):
         if i >= n_features:
-            axis.axis('off')
+            axis.axis('off')  # Hide unused subplots
             continue
 
+        # Plot predicted values
         axis.hist(properties_predicted[:, i], histtype="step", bins=bins, range=xrange,
                   label='Predicted' if i == 0 else "", **kwargs)
+
+        # Plot true values
         axis.hist(properties_true[:, i], histtype="step", bins=bins, range=xrange,
                   label='True' if i == 0 else "", linestyle='--', **kwargs)
 
-        axis.set_xlabel(f'Feature {-last_n_features + i + 1 if last_n_features else i + 1}')
+        # Axis labels
+        feature_index = -last_n_features + i + 1 if last_n_features else i + 1
+        axis.set_xlabel(f'Feature {feature_index}')
         axis.set_ylabel('Frequency')
 
+        # Add legend only to the first subplot
         if i == 0:
             axis.legend()
 
+    # Hide any remaining unused axes
     for j in range(i + 1, len(axes)):
         axes[j].axis('off')
 
+    # Adjust layout and save figure
     fig.tight_layout()
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)

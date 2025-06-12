@@ -370,8 +370,6 @@ class LossFunction:
             "regression",
         ],
         weight: Tensor = None,
-        classification_weight: float = 1.0,
-        regression_weight: float = 1.0,
         hierarchy_config: Optional[Dict[str, Tuple[str, int]]] = None,
         hierarchical_loss_params: Optional[Dict] = None
     ):

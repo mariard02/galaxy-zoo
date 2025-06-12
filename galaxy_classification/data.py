@@ -48,55 +48,81 @@ def trim_file_list(files, labels_df):
     files = [file for file in files if int(file.stem) in labels_df.index]
     return files
 
-# Dataset class for loading galaxy images
+# Custom dataset class for loading galaxy images and their corresponding labels
 class GalaxyDataset(Dataset):
     def __init__(self, file_list, labels_df, transform=None, task=None):
-        self.file_list = trim_file_list(file_list, labels_df)
+        """
+        Initializes the GalaxyDataset.
+
+        Args:
+            file_list (list): List of paths to the image files.
+            labels_df (pd.DataFrame): DataFrame containing the labels associated with each image.
+            transform (callable, optional): Transformation function to apply to the images 
+                                            (e.g., resizing, normalization).
+            task (str, optional): Type of task, e.g., "classification_multiclass" or "regression".
+        """
+        self.file_list = trim_file_list(file_list, labels_df)  # Remove entries without labels
         self.labels_df = labels_df
         self.transform = transform
-        self.task = task  
+        self.task = task
 
     def __getitem__(self, idx):
+        """
+        Retrieves the image and its label at the given index.
+
+        Args:
+            idx (int): Index of the item to retrieve.
+
+        Returns:
+            tuple: A tuple (image_tensor, label_tensor)
+        """
         img_path = self.file_list[idx]
-        image = Image.open(img_path).convert("RGB")
-        
-        # Aplicar la transformación si existe
+        image = Image.open(img_path).convert("RGB")  # Ensure the image has 3 color channels
+
+        # Apply transformation if provided
         if self.transform is not None:
             image = self.transform(image)
         else:
-            # Convertir a tensor por defecto si no hay transformación
+            # Default to basic ToTensor if no transform is provided
             image = transforms.ToTensor()(image)
 
         label = self._get_label(img_path)
 
+        # Choose tensor type based on the task
         if self.task == "classification_multiclass":
             label_tensor = torch.tensor(label.values, dtype=torch.long)
         else:
             label_tensor = torch.tensor(label.values, dtype=torch.float32)
+
         return image, label_tensor
 
     def __len__(self):
+        """
+        Returns the total number of items in the dataset.
 
+        Returns:
+            int: Number of image-label pairs
+        """
         return len(self.file_list)
 
     def _get_label(self, img_path):
         """
         Internal helper to retrieve the label for a given image path.
 
-        Parameters:
-        img_path (Path): Path to the image file.
+        Args:
+            img_path (Path): Path to the image file.
 
         Returns:
-        pandas.Series: Label(s) corresponding to the image.
+            pandas.Series: Label(s) corresponding to the image.
         """
         return img_label(img_path, self.labels_df)
-    
+
     def image_shape(self):
         """
         Returns the shape of the first transformed image, if possible.
 
         Returns:
-            tuple: Shape of the image (e.g., (3, 224, 224))
+            tuple: Shape of the image tensor (e.g., (3, 224, 224))
 
         Raises:
             AttributeError: If the image does not have a 'shape' attribute.
@@ -105,8 +131,11 @@ class GalaxyDataset(Dataset):
         try:
             return image.shape
         except AttributeError:
-            raise AttributeError("The loaded image does not have a 'shape' attribute. "
-                                "Make sure your 'transform' function converts the image to a tensor.")
+            raise AttributeError(
+                "The loaded image does not have a 'shape' attribute. "
+                "Make sure your 'transform' function converts the image to a tensor."
+            )
+
         
 def load_image_dataset(images_dir: Path, labels_path: Path, task = None, transform=None) -> GalaxyDataset:
     """
@@ -252,6 +281,15 @@ class GalaxyPreprocessor:
 
 @dataclass
 class SplitGalaxyDataLoader:
+    """
+    A helper class to split a dataset into training and validation DataLoaders,
+    with optional support for weighted sampling based on class imbalance.
+
+    Attributes:
+        training_dataloader (DataLoader): PyTorch DataLoader for the training set.
+        validation_dataloader (DataLoader): PyTorch DataLoader for the validation set.
+    """
+
     training_dataloader: DataLoader
     validation_dataloader: DataLoader
 
@@ -261,12 +299,30 @@ class SplitGalaxyDataLoader:
         validation_fraction: float,
         batch_size: int,
         random_seed: int = 38,
-        class_weights: list = None,  # Optional class weights
+        class_weights: list = None,
         task = None
     ):
+        """
+        Initializes the SplitGalaxyDataLoader by splitting the dataset and optionally
+        applying class weighting for the training set.
+
+        Args:
+            dataset (Dataset): The complete dataset to split.
+            validation_fraction (float): Fraction of data to use for validation.
+            batch_size (int): Batch size for both DataLoaders.
+            random_seed (int): Seed for reproducibility.
+            class_weights (list or Tensor, optional): List or tensor of class weights to handle imbalance.
+            task (str, optional): Task type, e.g., "classification_multiclass" or "classification_multilabel".
+
+        Raises:
+            ValueError: If dataset doesn't implement __len__, task type is unsupported, 
+                        or label format is invalid.
+            NotImplementedError: If weighted sampling is requested for multilabel classification.
+        """
         if not hasattr(dataset, '__len__'):
             raise ValueError("Input dataset must implement __len__()")
 
+        # Split the dataset
         dataset_length = len(dataset)
         validation_size = int(validation_fraction * dataset_length)
         train_size = dataset_length - validation_size
@@ -277,36 +333,37 @@ class SplitGalaxyDataLoader:
             generator=Generator().manual_seed(random_seed)
         )
 
-        sampler = None
+        sampler = None  # Default: no sampling
 
+        # Optional: apply weighted sampling if class_weights are provided
         if class_weights is not None:
             all_labels = [sample[1] for sample in training_dataset]
-            
+
             # Handle different label formats
             if task == "classification_multiclass":
-                # For multiclass classification with single integer labels
                 if all(isinstance(label, (int, float)) for label in all_labels):
-                    targets = torch.stack(all_labels).long()
-                # For multiclass classification with one-hot encoded labels
+                    # Labels are single integer values
+                    targets = torch.tensor(all_labels).long()
                 elif all(isinstance(label, torch.Tensor) and label.dim() == 1 for label in all_labels):
+                    # Labels are one-hot encoded tensors
                     targets = torch.stack(all_labels).argmax(dim=1)
                 else:
                     raise ValueError("Unsupported label format for multiclass classification")
             elif task == "classification_multilabel":
-                # For multilabel classification, WeightedRandomSampler isn't directly applicable
-                # You might need a different approach here
                 raise NotImplementedError("WeightedRandomSampler not implemented for multilabel classification")
             else:
                 raise ValueError(f"Unknown task type: {task}")
-            
+
+            # Compute sample weights and create a sampler
             class_weights = class_weights.clone().detach().float()
             sample_weights = class_weights[targets]
             sampler = WeightedRandomSampler(sample_weights, len(sample_weights), replacement=True)
 
+        # Build DataLoaders
         self.training_dataloader = DataLoader(
             training_dataset,
             batch_size=batch_size,
-            shuffle=False,  
+            shuffle=False,  # Don't shuffle if using sampler
             sampler=sampler
         )
         self.validation_dataloader = DataLoader(
@@ -314,6 +371,7 @@ class SplitGalaxyDataLoader:
             batch_size=batch_size,
             shuffle=False
         )
+
 
 class AutoNormalizeTransform(torch.nn.Module):
     """
