@@ -4,6 +4,9 @@ training:
   learning_rate: 5.e-4
   validation_fraction: 0.2
   data_dir: "data/exercise_2"
+  weight_decay: 5.e-5       
+  early_stopping_patience: 20 
+  early_stopping_delta: 1.e-4 
 
   network:
     channel_count_hidden: 16

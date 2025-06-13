@@ -52,6 +52,9 @@ class TrainingConfig:
         learning_rate (float): Learning rate for the optimizer.
         validation_fraction (float): Fraction of the dataset used for validation.
         network (NetworkConfig): Nested config for the network architecture.
+        weight_decay (Optional[float]): Weight decay for optimizer (L2 regularization).
+        early_stopping_patience (Optional[int]): Patience for early stopping.
+        early_stopping_delta (Optional[float]): Minimum change to qualify as improvement.
     """
     epoch_count: int
     batch_size: int
@@ -59,6 +62,9 @@ class TrainingConfig:
     validation_fraction: float
     network: NetworkConfig
     data_dir: str
+    weight_decay: Optional[float] = None
+    early_stopping_patience: Optional[int] = None
+    early_stopping_delta: Optional[float] = None
 
 
 # === Config Utilities ===
@@ -209,7 +215,7 @@ def main():
         hierarchy_config
     )
 
-    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-5)
+    optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay if config.weight_decay is not None else 0.0)
     
     loss = get_loss(config=config, weight=weights, hierarchy_config=hierarchy_config)
 
@@ -223,8 +229,8 @@ def main():
         split_dataloader.training_dataloader,
         split_dataloader.validation_dataloader,
         config.epoch_count,
-        patience=20,
-        delta = 1.e-5
+        patience=config.early_stopping_patience,
+        delta=config.early_stopping_delta
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")

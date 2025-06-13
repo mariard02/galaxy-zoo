@@ -126,7 +126,7 @@ Make sure that the `--run_name` value matches the name used during training. The
 ### Setting up the configuration
 Before training or evaluating the model, one essential step remains: defining a configuration file that specifies the parameters for both processes. This file, typically named `config.yaml`, allows you to customize the behavior of the training and evaluation scripts without modifying the source code.
 
-Below is an example of a `config.yaml` file:
+Below is an example of a `config.yaml` file with required and optional parameters:
 ```
 training:
   epoch_count: 15
@@ -134,6 +134,11 @@ training:
   learning_rate: 5.e-4
   validation_fraction: 0.2
   data_dir: "data/exercise_2"
+
+  # Optional regularization/early stopping (default: None)
+  weight_decay: 5.e-5            # L2 regularization strength (recommended: 1e-5 to 1e-2)
+  early_stopping_patience: 20     # Epochs to wait before stopping if no improvement
+  early_stopping_delta: 1.e-5     # Minimum validation loss delta to qualify as improvement
 
   network:
     channel_count_hidden: 16
@@ -154,6 +159,11 @@ evaluation:
 + `learning_rate`: Learning rate for the optimizer.
 + `validation_fraction`: Fraction of the dataset to be used for validation.
 + `data_dir`: Relative path to the directory containing the files with the labels and the hierarchy in the questions.
+
+**Optional**:
++ `weight_decay`: L2 regularization to prevent overfitting (default: `None`). Recommended value between 1e-5 (small) to 1e-2 (strong). For AdamW, typical values are 1e-4 to 5e-4.
++ `early_stopping_patience`: Stop training if validation loss doesn’t improve for N epochs (default: `None`).
++ `early_stopping_delta`: Minimum change in validation loss to count as improvement.
 
 **Network Architecture**
 
@@ -194,34 +204,6 @@ Here, you can:
 - Adjust or restructure the MLP head, changing the number, size, or type of layers.
 - Add new task-specific output layers, such as multitask learning heads, hierarchical regressors, or uncertainty estimates.
 - Implement custom forward passes if your task demands multiple inputs, auxiliary outputs, or non-standard loss functions.
-
-In addition to editing the model architecture or configuration file, you can fine-tune the training behavior by modifying a few lines in the `train.py` script. Specifically, the following block controls the optimizer, loss function, and training loop:
-```python 
-optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-5)
-
-loss = get_loss(config=config, weight=weights, hierarchy_config=hierarchy_config)
-
-print_divider()
-print("Training... \n")
-
-training_summary = galaxy_classification.fit(
-    network,
-    optimizer,
-    loss,
-    split_dataloader.training_dataloader,
-    split_dataloader.validation_dataloader,
-    config.epoch_count,
-    patience=20,
-    delta=1.e-5
-)
-```
-Here’s what you can customize:
-- **Weight decay:** The `weight_decay` argument in the optimizer controls L2 regularization, which helps prevent overfitting by penalizing large weights. If you don’t want to use it, you can simply remove the argument or set it to 0.0.
-- **Early stopping:** The `patience` and `delta` arguments control early stopping behavior:
-   - `patience=20` means training will stop if the validation loss doesn't improve after 20 consecutive epochs.
-   - `delta=1.e-5` sets the minimum change in validation loss that qualifies as an improvement.
-
-If you remove patience and delta from the call to fit, early stopping will not be used, and the model will train for the full number of epochs specified.
 
 Before training begins, the input images and labels are loaded and preprocessed. This is handled by the following lines in `train.py`:
 ```python
