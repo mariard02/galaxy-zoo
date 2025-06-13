@@ -55,7 +55,7 @@ data/
 │   └── test.csv  
 │   └── train.csv  
 │   └── hierarchy.yaml  
-├── exercise_3/  # Anomaly detection
+└── exercise_3/  # Anomaly detection
     └── test.csv  
     └── train.csv   
     └── hierarchy.yaml  
@@ -207,3 +207,40 @@ Here’s what you can customize:
 
 If you remove patience and delta from the call to fit, early stopping will not be used, and the model will train for the full number of epochs specified.
 
+Before training begins, the input images and labels are loaded and preprocessed. This is handled by the following lines in `train.py`:
+```python
+galaxy_dataset = load_image_dataset(
+    image_dir,
+    label_path,
+    task=config.network.task_type,
+    transform=None  # Optional torchvision transforms can be passed here
+)
+
+print("Preprocessing the data. \n")
+
+preprocessor = GalaxyPreprocessor(
+    image_dir=image_dir,
+    label_path=label_path,
+    scale_factor=1.0,
+    batch_size=config.batch_size,
+    normalize=True,
+)
+```
+Even if `transform=None` is passed when loading the dataset, preprocessing and data augmentation are automatically applied later by the GalaxyPreprocessor class. This includes:
+- Cropping and resizing to standardize input size.
+- Random augmentations such as:
+   - `RandomHorizontalFlip`
+   - `RandomVerticalFlip`
+   - `RandomRotation`
+- Normalization using dataset-wide mean and standard deviation (computed automatically unless disabled).
+- Optional scaling of image intensities via `scale_factor`.
+
+All of these steps are bundled into a transform pipeline internally and applied when `calling preprocessor.apply_preprocessing(...)`.
+
+Parameters you can customize:
+- `scale_factor`: Adjusts the pixel intensity scale (default is 1.0). 
+- `normalize=True`: Enables or disables normalization. Set to `False` to skip the computation and application of mean/std normalization.
+- `batch_size`: Affects the batch size used to estimate dataset statistics. Doesn’t influence training directly, but can impact normalization accuracy.
+
+**Note on additional transforms:**
+If you need full control over the transform pipeline (e.g. applying grayscale, center crop, or advanced augmentations), you can still bypass the default `GalaxyPreprocessor` by directly providing a custom `transform` to `load_image_dataset`. However, this will override the internal preprocessing.
