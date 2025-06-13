@@ -56,8 +56,8 @@ data/
 │   └── train.csv  
 │   └── hierarchy.yaml  
 ├── exercise_3/  # Anomaly detection
-│   └── test.csv  
-│   └── train.csv   
+    └── test.csv  
+    └── train.csv   
     └── hierarchy.yaml  
 ```
 In each of the folders, there is a `csv` file with the relevant labels for each task, as well as the ID of each of the galaxies. Additionally, for exercises 2 and 3 we can find a `hierarchy.yaml` file. In it, there is a dictionary that identifies which is the parent class for each of the questions. This file will be required if we are dealing with a regression task.
