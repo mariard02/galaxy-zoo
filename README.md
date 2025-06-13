@@ -2,6 +2,19 @@
 
 This project provides a robust framework for galaxy morphological classification using deep learning techniques. Built with PyTorch, it offers a complete pipeline from data loading to model evaluation, with particular attention to reproducibility and flexibility.
 
+## Table of Contents
+- [Description of the data](#description-of-the-data)
+- [Tasks](#tasks)
+  - [Task 1: Galaxy Type Classification](#task-1-galaxy-type-classification)
+  - [Task 2: Disk Characteristics Regression](#task-2-disk-characteristics-regression)
+  - [Task 3: Anomaly Detection](#task-3-anomaly-detection)
+- [Initial Setup](#initial-setup)
+- [Workflow](#workflow)
+  - [Training the model](#training-the-model)
+  - [Evaluating the model](#evaluating-the-model)
+  - [Setting up the configuration](#setting-up-the-configuration)
+  - [Further options](#further-options)
+
 ## Description of the data
 To train our neural network to classify galaxies, we use images and labels from the Galaxy Zoo project, a citizen science initiative where volunteers help classify galaxies based on their shapes.
 The dataset consists of color images (in PNG format) of galaxies. For each image, we focus on the central region of the galaxy, which we crop and use as input to our model.
