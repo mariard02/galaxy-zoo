@@ -1,22 +1,22 @@
 training:
-  epoch_count: 3
-  batch_size: 64
-  learning_rate: 5.e-4
+  epoch_count: 75
+  batch_size: 128
+  learning_rate: 1.e-3
   validation_fraction: 0.2
-  data_dir: "data/exercise_2"
-  weight_decay: 5.e-5       
+  data_dir: "data/exercise_3"
+  weight_decay: 5.e-4       
   early_stopping_patience: 20 
-  early_stopping_delta: 1.e-4 
+  early_stopping_delta: 5.e-5 
 
   network:
     channel_count_hidden: 16
-    convolution_kernel_size: 5
-    mlp_hidden_unit_count: 128
-    output_units: 8
+    convolution_kernel_size: 3
+    mlp_hidden_unit_count: 512
+    output_units: 64
     task_type: regression
     
 
 evaluation:
   batch_size: 1024
   task_type: regression
-  data_dir: "data/exercise_2"
+  data_dir: "data/exercise_3"

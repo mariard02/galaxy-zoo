@@ -136,9 +136,9 @@ training:
   data_dir: "data/exercise_2"
 
   # Optional regularization/early stopping (default: None)
-  weight_decay: 5.e-5            # L2 regularization strength (recommended: 1e-5 to 1e-2)
-  early_stopping_patience: 20     # Epochs to wait before stopping if no improvement
-  early_stopping_delta: 1.e-5     # Minimum validation loss delta to qualify as improvement
+  weight_decay: 5.e-5            
+  early_stopping_patience: 20     
+  early_stopping_delta: 1.e-5    
 
   network:
     channel_count_hidden: 16
@@ -195,7 +195,7 @@ The evaluation block mirrors the structure of the training section but is used e
 
 By editing the configuration file, you can fine-tune the model’s behavior and architecture, allowing you to easily experiment with different setups. The flexibility of this approach makes it ideal for both prototyping and structured experimentation.
 
-### Further options
+### Advanced options
 Up to this point, we have focused on configuring the model by editing the `config.yaml` file, which allows you to train and evaluate different architectures without modifying the source code. This is ideal for quick experimentation and reproducibility. However, more fine-grained control, such as implementing novel architectures, adding attention mechanisms, or integrating new types of output heads, requires editing the model definition directly.
 
 The architecture of the model is implemented in the file `galaxy_classification/networks/cnn.py`.
