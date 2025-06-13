@@ -6,7 +6,7 @@ This project provides a robust framework for galaxy morphological classification
 To train our neural network to classify galaxies, we use images and labels from the Galaxy Zoo project, a citizen science initiative where volunteers help classify galaxies based on their shapes.
 The dataset consists of color images (in PNG format) of galaxies. For each image, we focus on the central region of the galaxy, which we crop and use as input to our model.
 
-Each galaxy comes with 11 labels, which are probabilities between 0 and 1. These values represent how likely volunteers were to answer "yes" to a series of questions about the galaxy’s appearance—for example, whether it looks smooth, has spiral arms, or is edge-on.
+Each galaxy comes with 11 labels, which are probabilities between 0 and 1. These values represent how likely volunteers were to answer "yes" to a series of questions about the galaxy’s appearance—for example, whether it looks smooth, has spiral arms, or is edge-on. All the data can be downloaded from [here](https://www.kaggle.com/c/galaxy-zoo-the-galaxy-challenge/data).
 
 An important aspect of these labels is that they follow a hierarchical structure. The questions that volunteers answer are presented in a flow: some questions only appear based on previous answers. For example, the question *“How rounded is it?”* is only asked if the galaxy was first classified as “smooth.” This means that the probabilities for follow-up answers are conditional on earlier ones. So, in this example, the total probability across the roundness options must add up to the probability that the galaxy was identified as smooth.
 

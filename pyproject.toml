@@ -1,6 +1,6 @@
 [project]
 name = "galaxy_zoo"
-version = "0.1.0"
+version = "1.0.0"
 description = "Galaxy Zoo"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -16,7 +16,12 @@ dependencies = [
     "torch>=2.6.0",
     "torchvision>=0.21.0",
     "colorful",
-    "scikit-learn"
+    "pydantic",
+    "tqdm",
+    "Pillow"
+]
+authors = [
+  { name = "María Rodríguez Domínguez"}
 ]
 
 [tool.setuptools.packages.find]
