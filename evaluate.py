@@ -24,6 +24,7 @@ class EvaluationCli:
 class EvaluationConfig(BaseModel):
     batch_size: int
     task_type: str  # "classification_multiclass" or "regression"
+    data_dir: str
 
 def load_config(path: Path) -> EvaluationConfig:
     with open(path) as config_file:
@@ -76,11 +77,13 @@ def main():
     cli = simple_parsing.parse(EvaluationCli)
     config = load_config(Path(f"outputs/{cli.run_name}/config.yaml"))
 
-    image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_1/test.csv")
+    data_dir = Path(config.data_dir)
+    image_dir = Path("data/images/images_training_rev1")  
+    label_path = data_dir / "test.csv"
+    hierarchy_path = data_dir / "hierarchy.yaml"
 
     if config.task_type == "regression":
-        hierarchy_config = load_hierarchy_config(Path("data/exercise_2/hierarchy.yaml"))
+        hierarchy_config = load_hierarchy_config(hierarchy_path)
         hierarchy_config = {
             class_name: (info["parent"], info["num_classes"])
             for class_name, info in hierarchy_config.items()
@@ -107,12 +110,6 @@ def main():
     dataloader = DataLoader(
         galaxy_preprocessed, batch_size=config.batch_size, shuffle=False
     )
-
-    hierarchy_config = {
-        'class1': (None, 3),      
-        'class2': ('class1.2', 2), 
-        'class7': ('class1.1', 3) 
-    }
 
     network_config = load_hyperparameters(
         Path(f"outputs/{cli.run_name}/classifier/hyperparameters.yaml")

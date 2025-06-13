@@ -20,7 +20,8 @@ from torch.nn import (
     LeakyReLU,
     AdaptiveAvgPool2d,
     BatchNorm2d, 
-    ModuleDict
+    ModuleDict,
+    Dropout
 )
 import torch.nn.functional as F
 
@@ -151,12 +152,14 @@ class GalaxyCNNMLP(Module):
             ReLU(),
             AvgPool2d(kernel_size=2),  # Downsample by factor of 2
             DoubleConvolutionBlock(
-                channel_count_hidden, channel_count_hidden, channel_count_hidden,
+                channel_count_hidden, channel_count_hidden * 2, channel_count_hidden,
                 kernel_size=convolution_kernel_size,
             ),
             ReLU(),
             AvgPool2d(kernel_size=2),  # Downsample by factor of 2
         )
+
+        self.dropout = Dropout(0.25)
 
         # Calculate flattened size dynamically
         with torch.no_grad():
@@ -168,11 +171,9 @@ class GalaxyCNNMLP(Module):
             Flatten(),
             Linear(flattened_size, mlp_hidden_unit_count),
             ReLU(),
-            #Linear(mlp_hidden_unit_count, mlp_hidden_unit_count * 2),  # Expand
-            #ReLU(),
-            Linear(mlp_hidden_unit_count, output_units * 2),  # Prepare for output
+            Linear(mlp_hidden_unit_count, mlp_hidden_unit_count * 2),  # Expand
             ReLU(),
-            Linear(output_units * 2, output_units),
+            Linear(mlp_hidden_unit_count * 2, output_units),
             ReLU()
         )
 
@@ -194,6 +195,7 @@ class GalaxyCNNMLP(Module):
             For other tasks: single output tensor
         """
         x = self.cnn(x)
+        x = self.dropout(x)
         features = self.mlp(x)
 
         return self.output_head(features)

@@ -58,6 +58,7 @@ class TrainingConfig:
     learning_rate: float
     validation_fraction: float
     network: NetworkConfig
+    data_dir: str
 
 
 # === Config Utilities ===
@@ -103,13 +104,6 @@ def prepare_config(output_path: Path, default_path: Path, run_name: str, allow_c
 # === Hyperparameter Saving ===
 
 def save_hyperparameters(path: Path, config: NetworkConfig):
-    """
-    Save network hyperparameters to a YAML file.
-
-    Args:
-        path (Path): Output path for YAML file.
-        config (NetworkConfig): Network configuration dataclass.
-    """
     with open(path, "w") as hyperparameter_cache:
         yaml.dump(asdict(config), hyperparameter_cache)
 
@@ -144,9 +138,6 @@ def main():
     args = parser.parse_args()
     cli: TrainingCli = args.cli
 
-    image_dir = Path("data/images/images_training_rev1")
-    label_path = Path("data/exercise_1/train.csv")
-
     print("\n" + cf.purple(generate_title_string()) + "\n") 
     print_divider()
     print(f"Run name: {cf.purple(cli.run_name)}\n")
@@ -158,8 +149,14 @@ def main():
         not cli.no_config_edit,
     )
 
+    data_dir = Path(config.data_dir)
+    label_path = data_dir / "train.csv"
+    hierarchy_path = data_dir / "hierarchy.yaml"
+
+    image_dir = Path("data/images/images_training_rev1")
+
     if config.network.task_type == "regression":
-        hierarchy_config = load_hierarchy_config(Path("data/exercise_3/hierarchy.yaml"))
+        hierarchy_config = load_hierarchy_config(hierarchy_path)
         hierarchy_config = {
             class_name: (info["parent"], info["num_classes"])
             for class_name, info in hierarchy_config.items()
@@ -227,7 +224,7 @@ def main():
         split_dataloader.validation_dataloader,
         config.epoch_count,
         patience=20,
-        delta = 0.0000001
+        delta = 1.e-5
     )
 
     print(f"Saving training summary plots to outputs/{cli.run_name}/plots/training_summary.pdf")
