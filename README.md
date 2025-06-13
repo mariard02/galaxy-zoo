@@ -158,7 +158,7 @@ The architecture expands and contracts around this:
    + Second linear: → 2 × `mlp_hidden_unit_count`
    + Third linear: → `output_units`
 + `output_units`: Number of output units. For classification, this should match the number of classes.
-+ `task_type`: Type of task; valid values are:
++ `task_type`: Type of task. This setting determines how the model is trained and evaluated, including the choice of loss function, output format, and evaluation metrics. It is essential to select the correct task type for your use case. Valid values are:
    + `regression` for continuous outputs. The hierarchy of the data must be given.
    + `classification_multiclass`: model predicts class probabilities via logits.
 
@@ -182,7 +182,7 @@ Here, you can:
 - Add new task-specific output layers, such as multitask learning heads, hierarchical regressors, or uncertainty estimates.
 - Implement custom forward passes if your task demands multiple inputs, auxiliary outputs, or non-standard loss functions.
 
-In addition to editing the model architecture or configuration file, you can fine-tune the training behavior by modifying a few lines in the train.py script. Specifically, the following block controls the optimizer, loss function, and training loop:
+In addition to editing the model architecture or configuration file, you can fine-tune the training behavior by modifying a few lines in the `train.py` script. Specifically, the following block controls the optimizer, loss function, and training loop:
 ```python 
 optimizer = AdamW(network.parameters(), lr=config.learning_rate, weight_decay=5.e-5)
 
@@ -247,3 +247,40 @@ Parameters you can customize:
 
 **Note on additional transforms:**
 If you need full control over the transform pipeline (e.g. applying grayscale, center crop, or advanced augmentations), you can still bypass the default `GalaxyPreprocessor` by directly providing a custom `transform` to `load_image_dataset`. However, this will override the internal preprocessing.
+
+**Hierarchy in the labels**
+
+The hierarchical structure of the labels in each task is currently hardcoded in the `data_preparation.py` script to simplify the assignmets for this project.
+If you wish to define a custom hierarchy, we recommend modifying the `hierarchy.yaml` file that is automatically generated after running the script. This file can be edited to match your desired configuration.
+
+In the `hierarchy.yaml` file, each entry represents a classification task (e.g., a question about galaxy morphology), and specifies whether it depends on the answer to a previous question and how many possible responses it has.
+An example of the file structure is:
+```yaml 
+hierarchy:
+  class1:
+    parent: null
+    num_classes: 3
+  class2:
+    parent: class1.2
+    num_classes: 2
+  class7:
+    parent: class1.1
+    num_classes: 3
+```
+This defines the following hierarchy:
+- `class1` is a root question (since parent is `null`) with 3 possible answers.
+- `class2` is only relevant if the second answer (.2) was selected for class1. It has 2 classes.
+- `class7` depends on the first answer of `class1` and has 3 classes.
+
+To modify the hierarchy:
+1. Add a new class: create a new entry under hierarchy with a unique name (e.g., class3).
+2. Set the parent condition: Use the parent field to specify when this classification task should be active. The format is `parent_class.answer_index` (with indices starting at 1). If the class is independent (i.e., a root question), use `null`.
+Define the number of classes
+3. Set the `num_classes` field to indicate how many possible answers this classification task has.
+Example:
+```yaml
+class3:
+  parent: class2.1
+  num_classes: 4
+```
+In this example, `class3` is only evaluated if the first answer to `class2` was selected, and it has 4 possible outcomes.
