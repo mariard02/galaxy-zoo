@@ -3,9 +3,12 @@
 This project provides a robust framework for galaxy morphological classification using deep learning techniques. Built with PyTorch, it offers a complete pipeline from data loading to model evaluation, with particular attention to reproducibility and flexibility.
 
 ## Description of the data
-To train the network in the different galaxy classification tasks, we use data obtained from the GalaxyZoo project. In particular, we use RGB images in the PNG format. The central part of these will be cropped, and used for training. Each of these galaxies has 11 associated labels: numbers between 0 and 1 which correspond to the probability that the volunteers of the project answered yes to certain questions related to the shape and morphology of the galaxy. 
+To train our neural network to classify galaxies, we use images and labels from the Galaxy Zoo project, a citizen science initiative where volunteers help classify galaxies based on their shapes.
+The dataset consists of color images (in PNG format) of galaxies. For each image, we focus on the central region of the galaxy, which we crop and use as input to our model.
 
-A key feature in the data is that these labels are hierarchical: the sequence of questions presented to users follows a conditional flow. For instance, the question *How rounded is it?* is only shown if the user previously indicated that the galaxy appears smooth. This introduces a hierarchical dependency between answers: the probabilities associated with the answers to a follow-up question must sum to the probability that the prerequisite condition was met. In the example above, the total probability assigned to the answers about roundness must equal the probability that the galaxy was classified as smooth.
+Each galaxy comes with 11 labels, which are probabilities between 0 and 1. These values represent how likely volunteers were to answer "yes" to a series of questions about the galaxy’s appearance—for example, whether it looks smooth, has spiral arms, or is edge-on.
+
+An important aspect of these labels is that they follow a hierarchical structure. The questions that volunteers answer are presented in a flow: some questions only appear based on previous answers. For example, the question *“How rounded is it?”* is only asked if the galaxy was first classified as “smooth.” This means that the probabilities for follow-up answers are conditional on earlier ones. So, in this example, the total probability across the roundness options must add up to the probability that the galaxy was identified as smooth.
 
 ## Tasks
 ### Task 1: Galaxy Type Classification
