@@ -69,7 +69,7 @@ with open(hierarchy_path_2, 'w') as f:
 # -------------------------------
 question3 = labels_df[["GalaxyID", "Class1.1", "Class1.2", "Class1.3", "Class2.1", "Class2.2", "Class7.1", "Class7.2", "Class7.3",
                        "Class6.1", "Class6.2", "Class8.1", "Class8.2", "Class8.3", 
-                       "Class8.4", "Class8.5", "Class8.6", "Class8.7"]][:10000]
+                       "Class8.4", "Class8.5", "Class8.6", "Class8.7"]]
 q3_train, q3_test = train_test_split(question3, test_size=0.1, shuffle=True)
 
 os.makedirs("data/exercise_3", exist_ok=True)
